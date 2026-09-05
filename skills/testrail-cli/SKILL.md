@@ -1,7 +1,14 @@
 ---
 name: testrail-cli
-description: Use the `tr` CLI to read/search TestRail cases, build regression scope, and open runs. Use whenever a task mentions TestRail, test cases, regression scope, or test runs.
+description: Use the `tr` CLI to read and search TestRail cases, build a regression scope from a diff or ticket keys, and open test runs. Use whenever a task mentions TestRail, test cases, regression scope, or test runs.
 ---
+
+## Setup check (run first)
+```bash
+tr auth status || uv tool install git+https://github.com/jacobycwang/testrail-cli
+```
+- `configured: false` in the output -> stop and ask the user to run `tr auth login` (or set `TESTRAIL_HOST`, `TESTRAIL_EMAIL`, `TESTRAIL_API_KEY` in CI). Never ask for the key in chat.
+- `project_id: null` -> pass `--project ID` to every command, or ask the user which project.
 
 ## Hard rules
 - Unsure about an endpoint/param -> `tr docs TOPIC` or `tr docs search QUERY`; read `tr docs quirks` first.
@@ -11,14 +18,21 @@ description: Use the `tr` CLI to read/search TestRail cases, build regression sc
 - Any `tr api` write (add_/update_/close_) is dry-run unless `--commit`. `delete_*` is not available.
 - stdout is JSON; large responses land in `~/.cache/tr/last.json` and stdout gives the path.
 
+## Typical workflow
+1. `tr sync` once per session (incremental, cheap). First sync of a big project takes a minute or two.
+2. Find candidates: `tr search "<word from the change>"` and/or `tr scope --diff pr.diff --refs KEY-1`.
+3. Read the ones that matter: `tr case get ID`.
+4. Propose a run: `tr run add --case-ids ... --name "..."`, show the payload, wait for a yes, then rerun with `--commit`.
+
 ## Quick recipes
 - auth status: `tr auth status`
 - get one case (cache vs --fresh): `tr case get 42` | `tr case get 42 --fresh`
-- sync a project: `tr sync --project 1`
+- sync a project: `tr sync --project 10`
 - search a word in steps with filters: `tr search "payment" --type Regression --refs PAY-883`
+- only failed cases: `tr search "." --failed`
 - scope from a diff file and from refs: `tr scope --diff changes.diff --refs PAY-883`
 - open a run dry-run then commit: `tr run add --case-ids 1,2 --name "Smoke"` | `tr run add --case-ids 1,2 --name "Smoke" --commit`
-- raw api GET with --query and --paginate: `tr api get_cases/1 --query suite_id=2,limit=250 --paginate`
+- raw api GET with --query and --paginate: `tr api get_cases/10 --query suite_id=2,limit=250 --paginate`
 - multi-value param (one param, comma list): `tr api get_tests/88 --query status_id=4,5`
 - api dry-run POST with --data: `tr api add_case/2 --data case.json`
 

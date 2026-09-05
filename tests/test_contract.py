@@ -270,7 +270,7 @@ def test_bundled_docs_are_searchable_for_key_terms(query, topic, no_network):
     assert topic in {hit["topic"] for hit in json.loads(result.stdout)}
 
 
-SKILL_MD = Path(__file__).parent.parent / "skill.md"
+SKILL_MD = Path(__file__).parent.parent / "skills" / "testrail-cli" / "SKILL.md"
 HELP_TARGETS = [
     ["api"],
     ["docs"],
@@ -297,7 +297,7 @@ def _declared_options(argv: list[str]) -> set[str]:
 def test_skill_md_contract_lists_every_real_option(argv):
     contract = _contract_block()
     missing = {opt for opt in _declared_options(argv) - {"--help"} if opt not in contract}
-    assert not missing, f"skill.md contract is missing {sorted(missing)} for {' '.join(argv)}"
+    assert not missing, f"SKILL.md contract is missing {sorted(missing)} for {' '.join(argv)}"
 
 
 def test_skill_md_documents_the_refused_delete_exit_code():
