@@ -1,0 +1,45 @@
+[project]
+name = "testrail-cli"
+version = "0.1.0"
+description = "Thin TestRail CLI for coding agents"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "typer>=0.12",
+    "httpx>=0.27",
+    "keyring>=25",
+    "pyyaml>=6",
+]
+
+[project.scripts]
+tr = "tr.__main__:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "respx>=0.21",
+    "ruff>=0.6",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["tr"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"docs" = "tr/docs"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["typer.Argument", "typer.Option"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
