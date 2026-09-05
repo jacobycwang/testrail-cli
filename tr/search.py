@@ -128,7 +128,7 @@ def search(
     project: int | None = typer.Option(None, "--project", help="Project id override"),
     json_output: bool = typer.Option(False, "--json", help="Force JSON output (already default)"),
 ) -> None:
-    """Search the synced case cache with ripgrep. Never touches the network."""
+    """Search the synced case cache with ripgrep (offline)."""
     set_json(json_output)
     cfg = load_config()
     cases_dir = require_cases_dir(cfg, resolve_project(cfg, project))

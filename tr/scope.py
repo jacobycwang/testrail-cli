@@ -170,7 +170,7 @@ def scope(
     limit: int = typer.Option(DEFAULT_LIMIT, "--limit", help="Maximum cases"),
     project: int | None = typer.Option(None, "--project", help="Project id override"),
 ) -> None:
-    """Build a regression scope from a diff and/or ticket keys. Never touches the network."""
+    """Build a regression scope from a diff and/or ticket keys (offline)."""
     if not diff and not refs:
         fail("usage: tr scope [--diff PATH] [--refs KEYS] (at least one required)", 2)
 

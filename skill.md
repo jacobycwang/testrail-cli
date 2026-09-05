@@ -19,18 +19,20 @@ description: Use the `tr` CLI to read/search TestRail cases, build regression sc
 - scope from a diff file and from refs: `tr scope --diff changes.diff --refs PAY-883`
 - open a run dry-run then commit: `tr run add --case-ids 1,2 --name "Smoke"` | `tr run add --case-ids 1,2 --name "Smoke" --commit`
 - raw api GET with --query and --paginate: `tr api get_cases/1 --query suite_id=2,limit=250 --paginate`
+- multi-value param (one param, comma list): `tr api get_tests/88 --query status_id=4,5`
 - api dry-run POST with --data: `tr api add_case/2 --data case.json`
 
 ## Command contract
 ```
 tr auth login | status | logout
-tr api METHOD[/id] [--query k=v,k2=v2] [--data FILE] [--paginate] [--dry-run] [--commit]
+tr api METHOD[/id] [--query k=v,k2=v2] [--data FILE] [--paginate] [--dry-run] [--commit] [--sleep S]
 tr docs [TOPIC] | tr docs search QUERY
-tr sync [--project ID] [--since ISO] [--runs N] [--sleep SECONDS]
-tr search QUERY [--type T] [--refs KEY] [--failed] [--limit N]
-tr scope [--diff PATH] [--refs KEYS] [--failed] [--section]
-tr case get ID [--fresh]
-tr run add --case-ids 1,2 --name "..." [--commit]
+tr sync [--project ID] [--since ISO] [--runs N] [--sleep SECONDS] [--full]
+tr search QUERY [--type T] [--refs KEY] [--failed] [--limit N] [--project ID] [--json]
+tr scope [--diff PATH] [--refs KEYS] [--failed] [--section] [--limit N] [--project ID]
+tr case get ID [--fresh] [--project ID]
+tr run add --case-ids 1,2 --name "..." [--project ID] [--suite ID] [--description D]
+            [--milestone ID] [--refs KEYS] [--commit]
 ```
 
 ## Exit codes

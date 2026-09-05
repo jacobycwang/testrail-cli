@@ -104,7 +104,7 @@ Free-text cases use `custom_steps` + `custom_expected` instead.
 
 ## Shared steps
 
-`GET get_shared_steps/{project_id}` — list for a project.
+`GET get_shared_steps/{project_id}` — paginated `{offset,limit,size,_links,shared_steps}`.
 `GET get_shared_step/{shared_step_id}` — one set.
 Cases may store only `{shared_step_id}` in `custom_steps_separated`.
 Step text lives on the shared-step object:

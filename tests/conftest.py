@@ -1,5 +1,3 @@
-import os
-
 import pytest
 
 ENV_KEYS = (
@@ -36,7 +34,3 @@ def no_sleep(monkeypatch):
 @pytest.fixture
 def cache_dir(tmp_path):
     return tmp_path / "cache"
-
-
-def _unused():
-    return os.getcwd()

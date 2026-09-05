@@ -22,6 +22,8 @@ cache_dir: ~/.cache/tr
 - `tr case get 42`
 - `tr run add --case-ids 1,2 --name "Smoke"` # dry run; add --commit to send
 - `tr api get_case/42`
+- `tr api get_cases/1 --query suite_id=2,limit=250 --paginate`
+- `tr docs quirks`
 
 Commands: `tr auth`, `tr api`, `tr docs`, `tr sync`, `tr search`, `tr scope`, `tr case`, `tr run`.
 See [skill.md](skill.md) for agent usage guide and [docs/](docs/) for reference (`tr docs quirks`).

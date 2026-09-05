@@ -1,5 +1,6 @@
 import typer
 
+from tr.auth import get_api_key
 from tr.cache import case_path, project_dir, read_case_md
 from tr.config import Config, load_config
 from tr.http import APIClient, APIError, build_url
@@ -18,8 +19,6 @@ def _project(cfg: Config, override: int | None) -> int:
 
 
 def _client(cfg: Config) -> APIClient:
-    from tr.auth import get_api_key
-
     if not cfg.host:
         fail("no TestRail host configured; run `tr auth login` or set TESTRAIL_HOST", 3)
     if not cfg.email:

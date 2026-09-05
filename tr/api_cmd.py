@@ -4,7 +4,8 @@ from pathlib import Path
 
 import typer
 
-from tr.config import Config
+from tr.auth import get_api_key
+from tr.config import Config, load_config
 from tr.http import APIClient, APIError, build_url
 from tr.output import emit, emit_capped, fail
 
@@ -12,16 +13,22 @@ REFUSED_PREFIX = "delete"
 
 
 def parse_query(pairs: list[str] | None) -> dict[str, str]:
+    """k=v[,k2=v2]; a comma piece without '=' extends the previous value (status_id=4,5)."""
     params: dict[str, str] = {}
+    last_key: str | None = None
     for chunk in pairs or []:
         for item in chunk.split(","):
             item = item.strip()
             if not item:
                 continue
             if "=" not in item:
-                fail(f"bad --query item {item!r}; expected k=v", 2)
+                if last_key is None:
+                    fail(f"bad --query item {item!r}; expected k=v", 2)
+                params[last_key] += f",{item}"
+                continue
             key, _, value = item.partition("=")
-            params[key.strip()] = value
+            last_key = key.strip()
+            params[last_key] = value
     return params
 
 
@@ -41,8 +48,6 @@ def _read_file(source: str) -> str:
 
 
 def _client(cfg: Config, sleep: float) -> APIClient:
-    from tr.auth import get_api_key
-
     if not cfg.host:
         fail("no TestRail host configured; run `tr auth login` or set TESTRAIL_HOST", 3)
     if not cfg.email:
@@ -60,8 +65,6 @@ def api(
     sleep: float = typer.Option(0.0, "--sleep", help="Seconds to wait between requests"),
 ) -> None:
     """Call any TestRail API v2 method (writes need --commit)."""
-    from tr.config import load_config
-
     cfg = load_config()
     uri = method.lstrip("/")
     name = uri.split("/")[0]

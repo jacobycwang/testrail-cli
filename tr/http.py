@@ -11,18 +11,22 @@ RETRY_STATUSES = frozenset({429, 500, 502, 503, 504})
 DEFAULT_RETRY_AFTER = 60.0
 MAX_RETRY_AFTER = 120.0
 LIST_META_KEYS = frozenset({"_links", "offset", "limit", "size"})
+MAX_ERROR_BODY = 400
 
 
 def build_url(host: str | None, uri: str, params: dict[str, Any] | None = None) -> str:
     query = uri.lstrip("/")
     for key, value in (params or {}).items():
-        query += f"&{key}={quote(str(value), safe='')}"
+        query += f"&{key}={quote(str(value), safe=',')}"
     return f"{(host or '<host>').rstrip('/')}/index.php?{API_PREFIX}{query}"
 
 
 class APIError(Exception):
+    """Transport or API failure. status 0 means the request never reached TestRail."""
+
     def __init__(self, status: int, body: str) -> None:
-        super().__init__(f"TestRail returned {status}: {body[:400]}")
+        detail = body[:MAX_ERROR_BODY]
+        super().__init__(detail if status == 0 else f"TestRail returned {status}: {detail}")
         self.status = status
         self.body = body
 
@@ -98,13 +102,16 @@ class APIClient:
             attempt += 1
             if self.sleep_s and attempt == 1:
                 time.sleep(self.sleep_s)
-            response = self.client.request(
-                method,
-                url,
-                auth=(self.email, self.api_key),
-                headers={"Content-Type": "application/json"},
-                **kwargs,
-            )
+            try:
+                response = self.client.request(
+                    method,
+                    url,
+                    auth=(self.email, self.api_key),
+                    headers={"Content-Type": "application/json"},
+                    **kwargs,
+                )
+            except httpx.HTTPError as exc:
+                raise APIError(0, f"could not reach {self.host}: {type(exc).__name__}") from exc
             if response.status_code < 300:
                 return _decode(response)
             if response.status_code not in RETRY_STATUSES or attempt >= self.max_retries:
