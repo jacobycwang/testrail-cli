@@ -35,7 +35,7 @@ def test_missing_keyring_backend_exits_3_and_mentions_env(monkeypatch, capsys):
     assert exc.value.code == 3
     err = capsys.readouterr().err
     assert "TESTRAIL_API_KEY" in err
-    assert "tr auth login" in err
+    assert "testrail auth login" in err
 
 
 def test_no_stored_password_exits_3(monkeypatch, capsys):
@@ -114,7 +114,7 @@ def test_status_unconfigured_exits_0_with_one_hint(monkeypatch):
     assert payload["key_source"] is None
     assert result.stderr.splitlines() == [
         "hint: set TESTRAIL_HOST, TESTRAIL_EMAIL, TESTRAIL_API_KEY (CI) "
-        "or run `tr auth login`"
+        "or run `testrail auth login`"
     ]
 
 

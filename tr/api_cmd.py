@@ -49,9 +49,9 @@ def _read_file(source: str) -> str:
 
 def _client(cfg: Config, sleep: float) -> APIClient:
     if not cfg.host:
-        fail("no TestRail host configured; run `tr auth login` or set TESTRAIL_HOST", 3)
+        fail("no TestRail host configured; run `testrail auth login` or set TESTRAIL_HOST", 3)
     if not cfg.email:
-        fail("no TestRail email configured; run `tr auth login` or set TESTRAIL_EMAIL", 3)
+        fail("no TestRail email configured; run `testrail auth login` or set TESTRAIL_EMAIL", 3)
     return APIClient(cfg.host, cfg.email, get_api_key(cfg), sleep_s=sleep)
 
 
@@ -70,7 +70,7 @@ def api(
     name = uri.split("/")[0]
 
     if name.startswith(REFUSED_PREFIX):
-        fail(f"refusing to run {name}; tr never deletes TestRail data", 2)
+        fail(f"refusing to run {name}; testrail never deletes TestRail data", 2)
 
     is_get = name.startswith("get_")
     if paginate and not is_get:

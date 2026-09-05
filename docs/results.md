@@ -1,7 +1,7 @@
 # Results
 
 A result is a status (plus comment/elapsed/defects) recorded on a test.
-Call only via `tr api`. See `tr docs quirks`.
+Call only via `testrail api`. See `testrail docs quirks`.
 Writes without `--commit` dry-run. `elapsed` is a timespan like `1m 30s`.
 
 ## GET get_results/{test_id}
@@ -31,14 +31,14 @@ Required: `test_id` (int). Paginated `{offset,limit,size,_links,results}`.
 }
 ```
 
-    tr api get_results/501 --paginate
+    testrail api get_results/501 --paginate
 
 ## GET get_results_for_case/{run_id}/{case_id}
 
 Required: `run_id` (int), `case_id` (int). Same paginated `results`
 shape as `get_results` (the test instance of that case in that run).
 
-    tr api get_results_for_case/88/1042 --paginate
+    testrail api get_results_for_case/88/1042 --paginate
 
 ## GET get_results_for_run/{run_id}
 
@@ -46,7 +46,7 @@ Required: `run_id` (int). All results in the run. Paginated `results`.
 Query: `limit` int, `offset` int, `status_id` int list,
 `created_after` unix.
 
-    tr api get_results_for_run/88 --query status_id=5 --paginate
+    testrail api get_results_for_run/88 --query status_id=5 --paginate
 
 ## POST add_result/{test_id}
 
@@ -65,14 +65,14 @@ Required: `test_id` (int). Status 3 (untested) is not allowed.
 
 Response: one result object (same fields as above).
 
-    tr api add_result/501 --data body.json --commit
+    testrail api add_result/501 --data body.json --commit
 
 ## POST add_result_for_case/{run_id}/{case_id}
 
 Required: `run_id` (int), `case_id` (int). Same body as `add_result`,
 keyed by run+case instead of test id.
 
-    tr api add_result_for_case/88/1042 --data body.json --commit
+    testrail api add_result_for_case/88/1042 --data body.json --commit
 
 ## POST add_results_for_cases/{run_id}
 
@@ -105,4 +105,4 @@ least one of `status_id`, `comment`, `assignedto_id`.
 
 Response: unpaginated array of the new result objects.
 
-    tr api add_results_for_cases/88 --data body.json --commit
+    testrail api add_results_for_cases/88 --data body.json --commit

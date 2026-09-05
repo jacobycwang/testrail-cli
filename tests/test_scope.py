@@ -116,7 +116,7 @@ def test_missing_cache_exits_5_with_a_sync_hint(tmp_path, monkeypatch):
     result = run("--refs", "PAY-883", "--project", "99")
     assert result.exit_code == 5
     assert result.stdout == ""
-    assert "tr sync" in result.stderr
+    assert "testrail sync" in result.stderr
 
 
 def test_unknown_ticket_returns_empty_scope():

@@ -44,7 +44,7 @@ def search(query: str) -> list[dict[str, object]]:
             check=False,
         )
     except FileNotFoundError:
-        fail("ripgrep (rg) is not on PATH; install it to use `tr docs search`", 1)
+        fail("ripgrep (rg) is not on PATH; install it to use `testrail docs search`", 1)
     if proc.returncode not in (0, 1):
         fail(f"rg failed: {proc.stderr.strip()}", 1)
 
@@ -73,10 +73,10 @@ def docs(
     topic: str | None = typer.Argument(None, help="Topic name, or 'search'"),
     query: str | None = typer.Argument(None, help="Query when topic is 'search'"),
 ) -> None:
-    """List bundled docs, print one topic, or `tr docs search QUERY`."""
+    """List bundled docs, print one topic, or `testrail docs search QUERY`."""
     if topic == SEARCH_KEYWORD:
         if not query:
-            fail("usage: tr docs search QUERY", 2)
+            fail("usage: testrail docs search QUERY", 2)
         emit(search(query))
         return
     if topic is None:

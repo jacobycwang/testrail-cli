@@ -3,6 +3,7 @@
 import inspect
 import json
 import shutil
+import tomllib
 from pathlib import Path
 
 import httpx
@@ -304,3 +305,10 @@ def test_skill_md_documents_the_refused_delete_exit_code():
     exit_codes = SKILL_MD.read_text().split("## Exit codes")[1]
     assert "delete_*" in exit_codes
     assert "2" in exit_codes
+
+
+def test_console_scripts_expose_testrail_and_not_tr():
+    pyproject = tomllib.loads((Path(__file__).parent.parent / "pyproject.toml").read_text())
+    scripts = pyproject["project"]["scripts"]
+    assert set(scripts) == {"testrail"}
+    assert scripts["testrail"] == "tr.__main__:main"

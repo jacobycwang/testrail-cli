@@ -1,7 +1,7 @@
 # Tests
 
 A test is one case inside one run (the executable instance).
-Call only via `tr api`. See `tr docs quirks`.
+Call only via `testrail api`. See `testrail docs quirks`.
 
 ## GET get_tests/{run_id}
 
@@ -35,7 +35,7 @@ Query: `status_id` int list (comma-separated), `limit` int, `offset` int.
 }
 ```
 
-    tr api get_tests/88 --query status_id=4,5,limit=250 --paginate
+    testrail api get_tests/88 --query status_id=4,5,limit=250 --paginate
 
 ## GET get_test/{test_id}
 
@@ -55,7 +55,7 @@ Required: `test_id` (int). One test; may include case custom fields.
 }
 ```
 
-    tr api get_test/501
+    testrail api get_test/501
 
 ## GET get_statuses
 
@@ -79,4 +79,4 @@ Custom status IDs are >= 6.
 ]
 ```
 
-    tr api get_statuses
+    testrail api get_statuses

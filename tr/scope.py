@@ -172,7 +172,7 @@ def scope(
 ) -> None:
     """Build a regression scope from a diff and/or ticket keys (offline)."""
     if not diff and not refs:
-        fail("usage: tr scope [--diff PATH] [--refs KEYS] (at least one required)", 2)
+        fail("usage: testrail scope [--diff PATH] [--refs KEYS] (at least one required)", 2)
 
     cfg = load_config()
     project_id = resolve_project(cfg, project)

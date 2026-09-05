@@ -20,9 +20,9 @@ def _project(cfg: Config, override: int | None) -> int:
 
 def _client(cfg: Config) -> APIClient:
     if not cfg.host:
-        fail("no TestRail host configured; run `tr auth login` or set TESTRAIL_HOST", 3)
+        fail("no TestRail host configured; run `testrail auth login` or set TESTRAIL_HOST", 3)
     if not cfg.email:
-        fail("no TestRail email configured; run `tr auth login` or set TESTRAIL_EMAIL", 3)
+        fail("no TestRail email configured; run `testrail auth login` or set TESTRAIL_EMAIL", 3)
     return APIClient(cfg.host, cfg.email, get_api_key(cfg))
 
 
@@ -54,7 +54,7 @@ def case_get(
 
     path = case_path(project_dir(cfg, _project(cfg, project)), ident)
     if not path.is_file():
-        fail(f"C{ident} is not in the cache ({path}); run `tr sync` or retry with --fresh", 5)
+        fail(f"C{ident} is not in the cache ({path}); run `testrail sync` or retry with --fresh", 5)
     meta, body = read_case_md(path)
     emit_capped({"source": "cache", **meta, "id": ident, "body": body, "path": str(path)}, cfg)
 

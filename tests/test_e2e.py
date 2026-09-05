@@ -67,7 +67,7 @@ def creds(monkeypatch):
 
 @pytest.fixture
 def synced(cache_dir, monkeypatch, no_sleep):
-    """Run a real `tr sync` against mocked endpoints, then forbid any further network call."""
+    """Run a real `testrail sync` against mocked endpoints, then forbid any further network call."""
     with respx.mock:
         respx.get(url__startswith=f"{HOST}/index.php").mock(
             side_effect=lambda request: httpx.Response(200, json=_payload_for(str(request.url)))

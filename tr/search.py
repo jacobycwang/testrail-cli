@@ -24,7 +24,7 @@ def resolve_project(cfg: Config, project: int | None) -> int:
 def require_cases_dir(cfg: Config, project_id: int) -> Path:
     directory = project_dir(cfg, project_id) / "cases"
     if not directory.is_dir():
-        hint("run `tr sync` first to populate the local case cache")
+        hint("run `testrail sync` first to populate the local case cache")
         fail(f"no cached cases for project {project_id}", 5)
     return directory
 
@@ -38,7 +38,7 @@ def rg_hits(pattern: str, cases_dir: Path, whole_word: bool = False) -> dict[str
     try:
         proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
     except FileNotFoundError:
-        fail("ripgrep (rg) is not on PATH; install it to use `tr search`", 1)
+        fail("ripgrep (rg) is not on PATH; install it to use `testrail search`", 1)
     if proc.returncode not in (0, 1):
         fail(f"rg failed: {proc.stderr.strip()}", 1)
 

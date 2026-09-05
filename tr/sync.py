@@ -76,9 +76,9 @@ def sync(
 
 def _client(cfg: Config, sleep: float) -> APIClient:
     if not cfg.host:
-        fail("no TestRail host configured; run `tr auth login` or set TESTRAIL_HOST", 3)
+        fail("no TestRail host configured; run `testrail auth login` or set TESTRAIL_HOST", 3)
     if not cfg.email:
-        fail("no TestRail email configured; run `tr auth login` or set TESTRAIL_EMAIL", 3)
+        fail("no TestRail email configured; run `testrail auth login` or set TESTRAIL_EMAIL", 3)
     return APIClient(cfg.host, cfg.email, get_api_key(cfg), sleep_s=sleep)
 
 

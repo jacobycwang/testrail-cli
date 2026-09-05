@@ -1,6 +1,6 @@
 # Auth & Environment
 
-Where `tr` reads credentials, config and paths from; check with `tr auth status`.
+Where `testrail` reads credentials, config and paths from; check with `testrail auth status`.
 Precedence: environment variable > config.yml > built-in default.
 
 ## Environment variables
@@ -17,9 +17,9 @@ Precedence: environment variable > config.yml > built-in default.
 
 ## Keyring
 
-`tr auth login` stores the key in the OS keyring under service `testrail-cli`,
+`testrail auth login` stores the key in the OS keyring under service `testrail-cli`,
 account `{email}@{host}`, e.g. `qa@acme.com@https://acme.testrail.io`;
-`tr auth logout` deletes it. The key is never a CLI flag, never printed,
+`testrail auth logout` deletes it. The key is never a CLI flag, never printed,
 never logged, never written to config.yml.
 
 ## Headless Linux / CI

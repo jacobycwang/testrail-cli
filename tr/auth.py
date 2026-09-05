@@ -10,10 +10,10 @@ from tr.output import emit, fail, hint
 SERVICE = "testrail-cli"
 KEY_ENV = "TESTRAIL_API_KEY"
 NOT_CONFIGURED_HINT = (
-    "hint: set TESTRAIL_HOST, TESTRAIL_EMAIL, TESTRAIL_API_KEY (CI) or run `tr auth login`"
+    "hint: set TESTRAIL_HOST, TESTRAIL_EMAIL, TESTRAIL_API_KEY (CI) or run `testrail auth login`"
 )
 NO_KEY_HELP = (
-    f"no TestRail API key. Run `tr auth login`, or set {KEY_ENV} in the environment "
+    f"no TestRail API key. Run `testrail auth login`, or set {KEY_ENV} in the environment "
     f"(headless Linux without a Secret Service daemon must use {KEY_ENV})"
 )
 

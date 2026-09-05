@@ -70,7 +70,7 @@ def test_case_get_missing_from_cache_exits_5():
     assert result.exit_code == 5
     assert result.stdout == ""
     assert respx.calls.call_count == 0
-    assert "tr sync" in result.stderr
+    assert "testrail sync" in result.stderr
 
 
 @respx.mock

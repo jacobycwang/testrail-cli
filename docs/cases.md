@@ -1,7 +1,7 @@
 # Cases
 
-TestRail API v2. Call only via `tr api`. See `tr docs quirks`.
-delete_case/delete_cases are intentionally not exposed by tr.
+TestRail API v2. Call only via `testrail api`. See `testrail docs quirks`.
+delete_case/delete_cases are intentionally not exposed by testrail.
 
 ## GET get_case/{case_id}
 
@@ -23,7 +23,7 @@ Required: `case_id` (int). Returns one case.
 }
 ```
 
-    tr api get_case/1042
+    testrail api get_case/1042
 
 ## GET get_cases/{project_id}
 
@@ -43,7 +43,7 @@ Query: `suite_id` int, `section_id` int, `limit` int, `offset` int,
 }
 ```
 
-    tr api get_cases/1 --query suite_id=2,limit=250 --paginate
+    testrail api get_cases/1 --query suite_id=2,limit=250 --paginate
 
 ## POST add_case/{section_id}
 
@@ -63,7 +63,7 @@ Required: `section_id` (int). Body `title` required.
 
 Response: same shape as `get_case`.
 
-    tr api add_case/12 --data body.json --commit
+    testrail api add_case/12 --data body.json --commit
 
 ## POST update_case/{case_id}
 
@@ -73,19 +73,19 @@ Required: `case_id` (int). Partial update; same fields as add_case.
 { "priority_id": 1, "refs": "PAY-883, PAY-900" }
 ```
 
-    tr api update_case/1042 --data body.json --commit
+    testrail api update_case/1042 --data body.json --commit
 
 ## GET get_case_types
 
 No path params. Array of `{id, name, is_default}`.
 
-    tr api get_case_types
+    testrail api get_case_types
 
 ## GET get_priorities
 
 No path params. Array of `{id, name, short_name, is_default, priority}`.
 
-    tr api get_priorities
+    testrail api get_priorities
 
 ## GET get_case_fields
 
@@ -100,7 +100,7 @@ Free-text cases use `custom_steps` + `custom_expected` instead.
   "label": "Preconditions", "type_id": 3}]
 ```
 
-    tr api get_case_fields
+    testrail api get_case_fields
 
 ## Shared steps
 
@@ -115,4 +115,4 @@ Step text lives on the shared-step object:
    {"content": "Open /login", "expected": "Form shown"}]}
 ```
 
-    tr api get_shared_step/7
+    testrail api get_shared_step/7

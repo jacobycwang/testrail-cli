@@ -1,7 +1,7 @@
 # Sections
 
 Sections group cases inside a suite. Nested via `parent_id`.
-Call only via `tr api`. See `tr docs quirks`.
+Call only via `testrail api`. See `testrail docs quirks`.
 
 ## GET get_sections/{project_id}
 
@@ -36,13 +36,13 @@ Paginated `{offset,limit,size,_links,sections}`.
 }
 ```
 
-    tr api get_sections/1 --query suite_id=1,limit=250 --paginate
+    testrail api get_sections/1 --query suite_id=1,limit=250 --paginate
 
 ## GET get_section/{section_id}
 
 Required: `section_id` (int). One section object (same fields as above).
 
-    tr api get_section/12
+    testrail api get_section/12
 
 ## POST add_section/{project_id}
 
@@ -61,7 +61,7 @@ Required: `project_id` (int). Body `name` required.
 
 Response: same shape as `get_section`.
 
-    tr api add_section/1 --data body.json --commit
+    testrail api add_section/1 --data body.json --commit
 
 ## parent_id / depth and paths
 

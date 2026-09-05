@@ -118,7 +118,7 @@ def test_missing_cache_exits_5_with_a_sync_hint(tmp_path, monkeypatch):
     result = runner.invoke(app, ["search", "anything", "--project", "99"])
     assert result.exit_code == 5
     assert result.stdout == ""
-    assert "tr sync" in result.stderr
+    assert "testrail sync" in result.stderr
 
 
 def test_no_matches_returns_an_empty_list():
