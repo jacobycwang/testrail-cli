@@ -146,3 +146,11 @@ def test_post_sends_json_body(no_sleep):
     )
     assert make_client().post("add_run/34", {"name": "smoke"}) == {"id": 900}
     assert route.calls[0].request.headers["content-type"] == "application/json"
+
+
+@respx.mock
+def test_request_log_line_includes_query_params(capsys, no_sleep):
+    respx.get(url__startswith=f"{HOST}/index.php").mock(return_value=httpx.Response(200, json={}))
+    make_client().get("get_cases/34", {"suite_id": 7, "updated_after": 1757000000})
+    err = capsys.readouterr().err
+    assert "-> GET get_cases/34&suite_id=7&updated_after=1757000000" in err

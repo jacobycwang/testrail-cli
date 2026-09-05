@@ -97,7 +97,7 @@ class APIClient:
 
     def _request(self, method: str, uri: str, **kwargs: Any) -> Any:
         url = self.url(uri, kwargs.pop("params", None))
-        hint(f"-> {method} {uri.lstrip('/')}")
+        hint(f"-> {method} {url.split(API_PREFIX, 1)[-1]}")
         attempt = 0
         while True:
             attempt += 1
