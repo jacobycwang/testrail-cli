@@ -1,6 +1,7 @@
 {
   "last_sync": "2026-09-01T00:00:00Z",
   "project_id": 34,
+  "project_name": "Booking Core",
   "suites": {
     "2": "Auth",
     "3": "Payments",

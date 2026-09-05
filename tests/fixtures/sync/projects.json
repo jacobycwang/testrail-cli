@@ -1,0 +1,10 @@
+{
+  "offset": 0,
+  "limit": 250,
+  "size": 2,
+  "_links": {"next": null, "prev": null},
+  "projects": [
+    {"id": 34, "name": "Booking Core", "is_completed": false},
+    {"id": 55, "name": "Archive 2019", "is_completed": true}
+  ]
+}

@@ -5,7 +5,7 @@ A small TestRail command-line tool built for coding agents (Claude Code, Codex, 
 It does four things well:
 
 - **Talk to TestRail safely.** `testrail api` wraps the REST API with retries, rate-limit handling and pagination. Anything that writes is a dry run until you add `--commit`. Delete is not available at all.
-- **Search test cases offline.** `testrail sync` copies a project into local markdown files, then `testrail search` and `testrail scope` grep them with ripgrep. Zero API calls, and it finds words inside steps, which TestRail's own search cannot.
+- **Search test cases offline.** `testrail sync` copies every active project into local markdown files, then `testrail search` and `testrail scope` grep them with ripgrep. Zero API calls, and it finds words inside steps, which TestRail's own search cannot.
 - **Keep the API key out of files.** The key lives in your OS keychain or in an environment variable. It is never a flag and never written to disk.
 - **Teach the agent how to use it.** `skills/testrail-cli/SKILL.md` is an installable agent skill, and `testrail docs` ships a curated API reference with the known quirks.
 
@@ -26,10 +26,10 @@ uv tool install git+ssh://git@github.com/jacobycwang/testrail-cli
 testrail auth login
 testrail auth status
 
-# 3. Copy a project into the local cache and search it
-testrail sync --project 10
+# 3. Copy TestRail into the local cache and search it
+testrail sync                      # every active project; add --project 10 for just one
 testrail search "invalid_grant" --failed
-testrail case get 1042
+testrail case get 1042 --project 10
 ```
 
 Give your coding agent the skill so it knows the rules:
@@ -44,9 +44,11 @@ Upgrade later with `uv tool upgrade testrail-cli`.
 
 | Goal | Command |
 |---|---|
-| Sync a project (incremental after the first run) | `testrail sync --project 10` |
+| Sync every active project (incremental after the first run) | `testrail sync` |
+| Sync just one project | `testrail sync --project 10` |
 | Find cases mentioning a word, even inside steps | `testrail search "refund" --type Regression` |
 | Only the cases that failed last time | `testrail search "." --failed` |
+| Search inside one project only | `testrail search "refund" --project 10` |
 | Build a regression scope from a PR diff | `git diff main... > pr.diff && testrail scope --diff pr.diff` |
 | Scope from ticket keys | `testrail scope --refs PAY-883,PAY-900` |
 | Read one case (cache first, `--fresh` hits the API) | `testrail case get 1042` |
@@ -55,11 +57,13 @@ Upgrade later with `uv tool upgrade testrail-cli`.
 | Any raw API call | `testrail api get_cases/10 --query suite_id=2,limit=250 --paginate` |
 | Read the API notes and quirks | `testrail docs quirks`, `testrail docs search pagination` |
 
+`sync`, `search` and `scope` cover the whole instance by default; `--project ID` narrows them to one project, and every search result carries the project it came from.
+
 Every command prints JSON on stdout. Hints and progress go to stderr, so piping into `jq` just works.
 
 ## Configuration
 
-`testrail auth login` writes this file. Set `project_id` so you can drop `--project`:
+`testrail auth login` writes this file. `project_id` is the default project for `testrail case get` and `testrail run add` only — `sync`, `search` and `scope` ignore it and cover the whole instance:
 
 ```yaml
 # ~/.config/tr/config.yml  (no secrets in here)
@@ -80,7 +84,7 @@ export TESTRAIL_API_KEY=...        # from a secret store
 testrail api get_case/42
 ```
 
-Other overrides: `TESTRAIL_PROJECT_ID`, `TR_CONFIG` (config path), `TR_CACHE_DIR` (cache root), `TR_DOCS_DIR` (docs dir). Full reference: `testrail docs auth`.
+Other overrides: `TESTRAIL_PROJECT_ID` (narrows `sync`/`search`/`scope` to one project and is the default for `case get`/`run add`), `TR_CONFIG` (config path), `TR_CACHE_DIR` (cache root), `TR_DOCS_DIR` (docs dir). Full reference: `testrail docs auth`.
 
 ## Safety rules
 

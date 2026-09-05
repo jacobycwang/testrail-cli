@@ -9,7 +9,7 @@ Precedence: environment variable > config.yml > built-in default.
 | --- | --- |
 | `TESTRAIL_HOST` | Instance URL, e.g. `https://acme.testrail.io`. Overrides config. |
 | `TESTRAIL_EMAIL` | API user email. Overrides config. |
-| `TESTRAIL_PROJECT_ID` | Default project id. Overrides config. |
+| `TESTRAIL_PROJECT_ID` | Narrows `sync`/`search`/`scope` to one project, and is the default project for `case get`/`run add`. Overrides config. |
 | `TESTRAIL_API_KEY` | The API key. The ONLY env var that carries a secret. |
 | `TR_CONFIG` | Full path to config.yml (overrides `XDG_CONFIG_HOME`/`~/.config`). |
 | `TR_CACHE_DIR` | Cache root (overrides `XDG_CACHE_HOME`/`~/.cache/tr`). |
@@ -38,3 +38,13 @@ email: qa@acme.com
 project_id: 1
 cache_dir: ~/.cache/tr
 ```
+
+## Which project a command uses
+
+`sync`, `search` and `scope` are instance-wide: `--project ID` narrows them to one
+project, otherwise `TESTRAIL_PROJECT_ID` does, otherwise they cover every active
+(sync) or every cached (search/scope) project. They never read config.yml
+`project_id`.
+
+`case get` and `run add` need exactly one project: `--project` >
+`TESTRAIL_PROJECT_ID` > config.yml `project_id`, and exit 3 when none is set.

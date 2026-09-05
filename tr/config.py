@@ -13,6 +13,7 @@ class Config:
     host: str | None = None
     email: str | None = None
     project_id: int | None = None
+    env_project_id: int | None = None
     cache_dir: Path = Path.home() / ".cache" / "tr"
     max_stdout_kb: int = 64
 
@@ -49,7 +50,8 @@ def load_config() -> Config:
 
     host = os.environ.get("TESTRAIL_HOST") or raw.get("host") or None
     email = os.environ.get("TESTRAIL_EMAIL") or raw.get("email") or None
-    project_id = _as_int(os.environ.get("TESTRAIL_PROJECT_ID")) or _as_int(raw.get("project_id"))
+    env_project_id = _as_int(os.environ.get("TESTRAIL_PROJECT_ID"))
+    project_id = env_project_id or _as_int(raw.get("project_id"))
 
     cache_raw = os.environ.get(CACHE_ENV) or raw.get("cache_dir")
     cache_dir = Path(cache_raw).expanduser().absolute() if cache_raw else default_cache_dir()
@@ -60,6 +62,7 @@ def load_config() -> Config:
         host=host.rstrip("/") if host else None,
         email=email,
         project_id=project_id,
+        env_project_id=env_project_id,
         cache_dir=cache_dir,
         max_stdout_kb=max_stdout_kb,
     )

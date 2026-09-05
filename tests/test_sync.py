@@ -1,4 +1,5 @@
 import json
+import re
 import shutil
 import subprocess
 from datetime import datetime
@@ -45,6 +46,10 @@ def testrail(no_sleep):
 
 
 def _payload_for(url: str) -> dict | list:
+    if "get_projects" in url:
+        return fixture("projects")
+    if f"get_project/{PROJECT}" in url:
+        return {"id": PROJECT, "name": "Fixture Project", "is_completed": False}
     if f"get_suites/{PROJECT}" in url:
         return fixture("suites")
     if "get_case_types" in url:
@@ -269,7 +274,54 @@ def test_rg_finds_a_word_from_inside_an_html_paragraph(testrail, cache_dir):
     assert found.stdout.strip().endswith("C1045.md")
 
 
-def test_no_project_configured_exits_3(testrail):
+ARCHIVED = re.compile(r"/55(&|$)")
+
+
+def test_single_project_sync_never_lists_the_instance(testrail):
+    assert run_sync().exit_code == 0
+    assert not any("get_projects" in url for url in testrail)
+
+
+def test_no_project_syncs_every_active_project(testrail, cache_dir):
     result = runner.invoke(app, ["sync", "--sleep", "0"])
-    assert result.exit_code == 3
-    assert result.stdout == ""
+    assert result.exit_code == 0, result.output
+
+    out = json.loads(result.stdout)
+    assert Path(out["dir"]) == cache_dir
+    assert out["cases_written"] == 4
+    assert [p["project_id"] for p in out["projects"]] == [PROJECT]
+    assert out["projects"][0]["name"] == "Booking Core"
+    assert out["projects"][0]["cases_written"] == 4
+    assert Path(out["projects"][0]["dir"]) == cache_dir / str(PROJECT)
+    assert json.loads((cache_dir / str(PROJECT) / "meta.json").read_text())["project_name"] == (
+        "Booking Core"
+    )
+
+
+def test_completed_projects_are_never_fetched(testrail, cache_dir):
+    assert runner.invoke(app, ["sync", "--sleep", "0"]).exit_code == 0
+    assert not (cache_dir / "55").exists()
+    assert not [url for url in testrail if ARCHIVED.search(url)]
+
+
+def test_env_project_id_narrows_the_sync(testrail, cache_dir, monkeypatch):
+    monkeypatch.setenv("TESTRAIL_PROJECT_ID", str(PROJECT))
+    result = runner.invoke(app, ["sync", "--sleep", "0"])
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.stdout)["project_id"] == PROJECT
+    assert not any("get_projects" in url for url in testrail)
+
+
+def test_config_project_id_does_not_narrow_the_sync(testrail, cache_dir, tmp_path, monkeypatch):
+    config = tmp_path / "config.yml"
+    config.write_text(f"host: {HOST}\nemail: qa@example.com\nproject_id: {PROJECT}\n")
+    monkeypatch.setenv("TR_CONFIG", str(config))
+    result = runner.invoke(app, ["sync", "--sleep", "0"])
+    assert result.exit_code == 0, result.output
+    assert "projects" in json.loads(result.stdout)
+
+
+def test_single_project_sync_stores_the_project_name(testrail, cache_dir):
+    assert run_sync().exit_code == 0
+    meta = json.loads((cache_dir / str(PROJECT) / "meta.json").read_text())
+    assert meta["project_name"] == "Fixture Project"

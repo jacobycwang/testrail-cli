@@ -8,7 +8,7 @@ description: Use the `testrail` CLI to read and search TestRail cases, build a r
 testrail auth status || uv tool install git+ssh://git@github.com/jacobycwang/testrail-cli
 ```
 - `configured: false` in the output -> stop and ask the user to run `testrail auth login` (or set `TESTRAIL_HOST`, `TESTRAIL_EMAIL`, `TESTRAIL_API_KEY` in CI). Never ask for the key in chat.
-- `project_id: null` -> pass `--project ID` to every command, or ask the user which project.
+- `project_id: null` -> fine for `sync`/`search`/`scope` (they cover every project). Only `case get` and `run add` need a project: pass `--project ID` or ask the user which project.
 
 ## Hard rules
 - Unsure about an endpoint/param -> `testrail docs TOPIC` or `testrail docs search QUERY`; read `testrail docs quirks` first.
@@ -19,7 +19,7 @@ testrail auth status || uv tool install git+ssh://git@github.com/jacobycwang/tes
 - stdout is JSON; large responses land in `~/.cache/tr/last.json` and stdout gives the path.
 
 ## Typical workflow
-1. `testrail sync` once per session (incremental, cheap). First sync of a big project takes a minute or two.
+1. `testrail sync` once per session (incremental, cheap). With no `--project` it walks every active project; the first sync of a big instance takes a few minutes.
 2. Find candidates: `testrail search "<word from the change>"` and/or `testrail scope --diff pr.diff --refs KEY-1`.
 3. Read the ones that matter: `testrail case get ID`.
 4. Propose a run: `testrail run add --case-ids ... --name "..."`, show the payload, wait for a yes, then rerun with `--commit`.
@@ -27,8 +27,10 @@ testrail auth status || uv tool install git+ssh://git@github.com/jacobycwang/tes
 ## Quick recipes
 - auth status: `testrail auth status`
 - get one case (cache vs --fresh): `testrail case get 42` | `testrail case get 42 --fresh`
-- sync a project: `testrail sync --project 10`
+- sync every active project: `testrail sync`
+- sync one project only: `testrail sync --project 10`
 - search a word in steps with filters: `testrail search "payment" --type Regression --refs PAY-883`
+- search inside one project: `testrail search "payment" --project 10`
 - only failed cases: `testrail search "." --failed`
 - scope from a diff file and from refs: `testrail scope --diff changes.diff --refs PAY-883`
 - open a run dry-run then commit: `testrail run add --case-ids 1,2 --name "Smoke"` | `testrail run add --case-ids 1,2 --name "Smoke" --commit`
@@ -37,7 +39,9 @@ testrail auth status || uv tool install git+ssh://git@github.com/jacobycwang/tes
 - api dry-run POST with --data: `testrail api add_case/2 --data case.json`
 
 ## Environment
-- `TESTRAIL_HOST`, `TESTRAIL_EMAIL`, `TESTRAIL_PROJECT_ID` — override config.yml.
+- `TESTRAIL_HOST`, `TESTRAIL_EMAIL` — override config.yml.
+- `TESTRAIL_PROJECT_ID` — narrows `sync`/`search`/`scope` to one project, and is the default project for `case get`/`run add`.
+- config.yml `project_id` — default for `case get`/`run add` only; it never narrows `sync`/`search`/`scope`.
 - `TESTRAIL_API_KEY` — the key (CI/headless); otherwise the keyring via `testrail auth login`.
 - `TR_CONFIG`, `TR_CACHE_DIR`, `TR_DOCS_DIR` — config path, cache root, docs dir.
 - Keyring service `testrail-cli`, account `{email}@{host}`. Never a flag, never a file.
@@ -54,6 +58,11 @@ testrail scope [--diff PATH] [--refs KEYS] [--failed] [--section] [--limit N] [-
 testrail case get ID [--fresh] [--project ID]
 testrail run add --case-ids 1,2 --name "..." [--project ID] [--suite ID] [--description D]
             [--milestone ID] [--refs KEYS] [--commit]
+
+On sync/search/scope, [--project ID] narrows to one project; default = all cached/active
+projects, and every search hit carries "project" and "project_name".
+On case get / run add a project is required: --project > TESTRAIL_PROJECT_ID > config
+project_id, else exit 3.
 ```
 
 ## Exit codes

@@ -22,30 +22,31 @@ MISSING_SHARED_STEP = "[shared step {id} not synced]"
 
 
 def sync(
-    project: int | None = typer.Option(None, "--project", help="TestRail project id"),
+    project: int | None = typer.Option(
+        None, "--project", help="Narrow to one project; default is every active project"
+    ),
     since: str | None = typer.Option(None, "--since", help="ISO 8601 lower bound for case updates"),
     runs: int = typer.Option(DEFAULT_RUNS, "--runs", help="Recent runs to scan for statuses"),
     sleep: float = typer.Option(DEFAULT_SLEEP, "--sleep", help="Seconds to wait between requests"),
     full: bool = typer.Option(False, "--full", help="Ignore the stored last_sync and refetch all"),
 ) -> None:
-    """Flatten a TestRail project into the local markdown cache."""
+    """Flatten TestRail into the local markdown cache; every active project unless narrowed."""
     started = datetime.now(UTC).replace(microsecond=0)
     cfg = load_config()
-    project_id = project or cfg.project_id
-    if not project_id:
-        fail("no project id; pass --project or set project_id in the config", 3)
-
-    out_dir = cache.project_dir(cfg, project_id)
-    previous = cache.load_json(out_dir / "meta.json") or {}
-    updated_after = _updated_after(since, previous.get("last_sync"), full)
+    only = project if project is not None else cfg.env_project_id
 
     client = _client(cfg, sleep)
+    summaries: list[dict] = []
     try:
-        meta = _reference_data(client, project_id, out_dir)
-        suite_ids = [int(sid) for sid in meta["suites"]] or [None]
-        cases = _fetch_cases(client, project_id, suite_ids, updated_after)
-        shared_steps = _fetch_shared_steps(client, project_id, out_dir)
-        latest, runs_scanned = _fetch_runs(client, project_id, runs, meta["statuses"], out_dir)
+        if only is not None:
+            name = _project_name(client, only)
+            summaries.append(_sync_project(client, cfg, only, name, started, since, runs, full))
+        else:
+            targets = _active_projects(client)
+            for index, (project_id, name) in enumerate(targets, start=1):
+                hint(f"[{index}/{len(targets)}] project {project_id} {name or ''}".rstrip())
+                summary = _sync_project(client, cfg, project_id, name, started, since, runs, full)
+                summaries.append({**summary, "name": name})
     except APIError as exc:
         fail(str(exc), 4)
     except OSError as exc:
@@ -53,25 +54,69 @@ def sync(
     finally:
         client.close()
 
+    if only is not None:
+        emit(summaries[0])
+        return
+    emit(
+        {
+            "projects": summaries,
+            "cases_written": sum(summary["cases_written"] for summary in summaries),
+            "dir": str(cfg.cache_dir),
+        }
+    )
+
+
+def _project_name(client: APIClient, project_id: int) -> str | None:
+    project = client.get(f"get_project/{project_id}")
+    return project.get("name") if isinstance(project, dict) else None
+
+
+def _active_projects(client: APIClient) -> list[tuple[int, str | None]]:
+    """Every project TestRail has not marked completed, oldest id first."""
+    projects = _items(client.paginate("get_projects"), "projects")
+    active = [p for p in projects if p.get("id") is not None and not p.get("is_completed")]
+    hint(f"{len(active)} active projects of {len(projects)}")
+    return [(int(p["id"]), p.get("name")) for p in active]
+
+
+def _sync_project(
+    client: APIClient,
+    cfg: Config,
+    project_id: int,
+    name: str | None,
+    started: datetime,
+    since: str | None,
+    runs: int,
+    full: bool,
+) -> dict:
+    out_dir = cache.project_dir(cfg, project_id)
+    previous = cache.load_json(out_dir / "meta.json") or {}
+    updated_after = _updated_after(since, previous.get("last_sync"), full)
+
+    meta = _reference_data(client, project_id, out_dir)
+    suite_ids = [int(sid) for sid in meta["suites"]] or [None]
+    cases = _fetch_cases(client, project_id, suite_ids, updated_after)
+    shared_steps = _fetch_shared_steps(client, project_id, out_dir)
+    latest, runs_scanned = _fetch_runs(client, project_id, runs, meta["statuses"], out_dir)
+
     for case in cases:
         _write_case(out_dir, case, meta, shared_steps, latest)
     hint(f"wrote {len(cases)} cases to {out_dir / 'cases'}")
 
     meta["last_sync"] = _iso(started)
     meta["project_id"] = project_id
+    meta["project_name"] = name if name is not None else previous.get("project_name")
     cache.dump_json(out_dir / "meta.json", meta)
 
-    emit(
-        {
-            "project_id": project_id,
-            "cases_written": len(cases),
-            "sections": len(meta["sections"]),
-            "shared_steps": len(shared_steps),
-            "runs_scanned": runs_scanned,
-            "last_sync": meta["last_sync"],
-            "dir": str(out_dir),
-        }
-    )
+    return {
+        "project_id": project_id,
+        "cases_written": len(cases),
+        "sections": len(meta["sections"]),
+        "shared_steps": len(shared_steps),
+        "runs_scanned": runs_scanned,
+        "last_sync": meta["last_sync"],
+        "dir": str(out_dir),
+    }
 
 
 def _client(cfg: Config, sleep: float) -> APIClient:

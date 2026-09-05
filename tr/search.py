@@ -1,10 +1,11 @@
 import json
 import subprocess
+from collections.abc import Sequence
 from pathlib import Path
 
 import typer
 
-from tr.cache import project_dir, read_case_md
+from tr.cache import cached_project_dirs, project_dir, project_name, read_case_md
 from tr.config import Config, load_config
 from tr.output import emit, fail, hint, set_json
 
@@ -14,11 +15,12 @@ PRIORITY_ORDER = {"high": 0, "medium": 1, "low": 2}
 UNRANKED_PRIORITY = 3
 
 
-def resolve_project(cfg: Config, project: int | None) -> int:
-    project_id = project if project is not None else cfg.project_id
-    if project_id is None:
-        fail("no project id; set project_id in config or pass --project", 3)
-    return project_id
+def resolve_project(cfg: Config, project: int | None) -> int | None:
+    """`--project` wins, then TESTRAIL_PROJECT_ID, else None meaning every cached project.
+
+    config.yml `project_id` is deliberately ignored here: sync/search/scope are instance-wide.
+    """
+    return project if project is not None else cfg.env_project_id
 
 
 def require_cases_dir(cfg: Config, project_id: int) -> Path:
@@ -29,12 +31,30 @@ def require_cases_dir(cfg: Config, project_id: int) -> Path:
     return directory
 
 
-def rg_hits(pattern: str, cases_dir: Path, whole_word: bool = False) -> dict[str, list[dict]]:
-    """Map case file path -> deduplicated {line, text} hits for pattern."""
+def cases_dirs_for(cfg: Config, project: int | None) -> list[Path]:
+    """The `cases/` dirs a read command should scan: one project, or all of them."""
+    narrowed = resolve_project(cfg, project)
+    if narrowed is not None:
+        return [require_cases_dir(cfg, narrowed)]
+    dirs = [directory / "cases" for directory in cached_project_dirs(cfg)]
+    if not dirs:
+        hint("run `testrail sync` first to populate the local case cache")
+        fail(f"no cached projects under {cfg.cache_dir}", 5)
+    return dirs
+
+
+def case_project(path: Path | str) -> int:
+    return int(Path(path).parent.parent.name)
+
+
+def rg_hits(
+    pattern: str, cases_dirs: Sequence[Path], whole_word: bool = False
+) -> dict[str, list[dict]]:
+    """Map case file path -> deduplicated {line, text} hits for pattern, across every dir."""
     cmd = ["rg", "--json", "-i", "-g", "C*.md"]
     if whole_word:
         cmd.append("-w")
-    cmd += ["--", pattern, str(cases_dir)]
+    cmd += ["--", pattern, *(str(directory) for directory in cases_dirs)]
     try:
         proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
     except FileNotFoundError:
@@ -64,10 +84,13 @@ def rg_hits(pattern: str, cases_dir: Path, whole_word: bool = False) -> dict[str
     return hits
 
 
-def case_record(path: str, hits: list[dict]) -> dict | None:
+def case_record(path: str, hits: list[dict], names: dict[str, str | None]) -> dict | None:
     meta, _ = read_case_md(Path(path))
     if not meta:
         return None
+    home = Path(path).parent.parent
+    if str(home) not in names:
+        names[str(home)] = project_name(home)
     return {
         "id": meta.get("id"),
         "title": meta.get("title"),
@@ -77,6 +100,8 @@ def case_record(path: str, hits: list[dict]) -> dict | None:
         "refs": meta.get("refs") or [],
         "last_status": meta.get("last_status"),
         "path": path,
+        "project": case_project(path),
+        "project_name": names[str(home)],
         "hits": hits,
     }
 
@@ -97,22 +122,23 @@ def keep_record(record: dict, case_type: str | None, refs: set[str], failed_only
     return True
 
 
-def rank_key(record: dict) -> tuple[int, int, int]:
+def rank_key(record: dict) -> tuple[int, int, int, int]:
     failed = 0 if record["last_status"] == "failed" else 1
     priority = PRIORITY_ORDER.get(str(record["priority"] or "").lower(), UNRANKED_PRIORITY)
-    return failed, priority, int(record["id"] or 0)
+    return failed, priority, record["project"], int(record["id"] or 0)
 
 
 def search_cases(
     query: str,
-    cases_dir: Path,
+    cases_dirs: Sequence[Path],
     case_type: str | None = None,
     refs: set[str] | None = None,
     failed_only: bool = False,
 ) -> list[dict]:
     records = []
-    for path, hits in rg_hits(query, cases_dir).items():
-        record = case_record(path, hits)
+    names: dict[str, str | None] = {}
+    for path, hits in rg_hits(query, cases_dirs).items():
+        record = case_record(path, hits, names)
         if record and keep_record(record, case_type, refs or set(), failed_only):
             records.append(record)
     records.sort(key=rank_key)
@@ -125,12 +151,15 @@ def search(
     refs: str | None = typer.Option(None, "--refs", help="Comma-separated ticket keys"),
     failed: bool = typer.Option(False, "--failed", help="Keep only cases whose last run failed"),
     limit: int = typer.Option(DEFAULT_LIMIT, "--limit", help="Maximum results"),
-    project: int | None = typer.Option(None, "--project", help="Project id override"),
+    project: int | None = typer.Option(
+        None, "--project", help="Narrow to one project; default is every cached project"
+    ),
     json_output: bool = typer.Option(False, "--json", help="Force JSON output (already default)"),
 ) -> None:
     """Search the synced case cache with ripgrep (offline)."""
     set_json(json_output)
     cfg = load_config()
-    cases_dir = require_cases_dir(cfg, resolve_project(cfg, project))
-    records = search_cases(query, cases_dir, case_type, split_keys(refs), failed)
+    records = search_cases(
+        query, cases_dirs_for(cfg, project), case_type, split_keys(refs), failed
+    )
     emit(records[:limit])

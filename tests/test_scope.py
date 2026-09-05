@@ -123,3 +123,27 @@ def test_unknown_ticket_returns_empty_scope():
     payload = json.loads(run("--refs", "NOPE-1").stdout)
     assert payload["case_ids"] == []
     assert payload["reasons"] == {}
+
+
+def test_refs_span_every_cached_project(monkeypatch):
+    monkeypatch.delenv("TESTRAIL_PROJECT_ID", raising=False)
+    payload = json.loads(run("--refs", "PAY-883").stdout)
+    assert payload["case_ids"] == [1042, 2201, 5002]
+    assert payload["projects"] == {"1042": 34, "2201": 34, "5002": 16}
+    assert payload["reasons"]["5002"] == ["ref:PAY-883"]
+
+
+def test_section_expansion_stays_inside_each_project(monkeypatch):
+    """5001 shares the Payments/Refund path with project 34 but is never pulled across."""
+    monkeypatch.delenv("TESTRAIL_PROJECT_ID", raising=False)
+    payload = json.loads(run("--refs", "PAY-883", "--section").stdout)
+    assert payload["case_ids"] == [1042, 2201, 1043, 2202, 5002, 1044, 2203]
+    assert payload["projects"]["5002"] == 16
+    assert payload["reasons"]["2203"] == ["section:Payments/Refund"]
+
+
+def test_project_flag_narrows_the_scope(monkeypatch):
+    monkeypatch.delenv("TESTRAIL_PROJECT_ID", raising=False)
+    payload = json.loads(run("--refs", "PAY-883", "--project", "16").stdout)
+    assert payload["case_ids"] == [5002]
+    assert payload["projects"] == {"5002": 16}

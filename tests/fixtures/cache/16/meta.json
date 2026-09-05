@@ -1,0 +1,47 @@
+{
+  "last_sync": "2026-09-02T00:00:00Z",
+  "project_id": 16,
+  "project_name": "Security Tests",
+  "suites": {
+    "7": "Security"
+  },
+  "sections": {
+    "70": {
+      "name": "Security",
+      "parent_id": null,
+      "suite_id": 7,
+      "path": "Security"
+    },
+    "71": {
+      "name": "Keys",
+      "parent_id": 70,
+      "suite_id": 7,
+      "path": "Security/Keys"
+    },
+    "72": {
+      "name": "Refund",
+      "parent_id": null,
+      "suite_id": 7,
+      "path": "Payments/Refund"
+    },
+    "73": {
+      "name": "Audit",
+      "parent_id": 70,
+      "suite_id": 7,
+      "path": "Security/Audit"
+    }
+  },
+  "types": {
+    "1": "Regression",
+    "2": "Smoke"
+  },
+  "priorities": {
+    "1": "Low",
+    "2": "Medium",
+    "3": "High"
+  },
+  "statuses": {
+    "1": "passed",
+    "5": "failed"
+  }
+}

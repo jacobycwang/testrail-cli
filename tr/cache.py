@@ -13,6 +13,20 @@ def project_dir(cfg: Config, project_id: int | str) -> Path:
     return cfg.cache_dir / str(project_id)
 
 
+def cached_project_dirs(cfg: Config) -> list[Path]:
+    """Every `{cache_dir}/<project id>/` that already holds a `cases/` dir, in numeric order."""
+    root = Path(cfg.cache_dir)
+    if not root.is_dir():
+        return []
+    dirs = [p for p in root.iterdir() if p.name.isdigit() and (p / "cases").is_dir()]
+    return sorted(dirs, key=lambda p: int(p.name))
+
+
+def project_name(project_dir: Path) -> str | None:
+    meta = load_json(Path(project_dir) / "meta.json")
+    return meta.get("project_name") if isinstance(meta, dict) else None
+
+
 def case_path(project_dir: Path, case_id: int | str) -> Path:
     return project_dir / "cases" / f"C{case_id}.md"
 

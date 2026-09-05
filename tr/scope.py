@@ -1,13 +1,14 @@
 import re
 import sys
+from collections.abc import Sequence
 from pathlib import Path
 
 import typer
 
 from tr.cache import read_case_md
-from tr.config import Config, load_config
+from tr.config import load_config
 from tr.output import emit, fail
-from tr.search import require_cases_dir, resolve_project, rg_hits, split_keys
+from tr.search import case_project, cases_dirs_for, rg_hits, split_keys
 
 DEFAULT_LIMIT = 50
 MAX_TERMS = 40
@@ -84,22 +85,24 @@ def extract_tickets(text: str) -> list[str]:
     return tickets
 
 
-def load_cases(cases_dir: Path) -> dict[str, dict]:
-    """Case file name -> front matter record."""
+def load_cases(cases_dirs: Sequence[Path]) -> dict[str, dict]:
+    """Case file path -> front matter record; the path keeps same-named cases apart."""
     cases: dict[str, dict] = {}
-    for path in sorted(cases_dir.glob("C*.md")):
-        meta, _ = read_case_md(path)
-        if meta.get("id") is None:
-            continue
-        cases[path.name] = {
-            "id": int(meta["id"]),
-            "section": meta.get("section"),
-            "type": meta.get("type"),
-            "priority": meta.get("priority"),
-            "refs": meta.get("refs") or [],
-            "last_status": meta.get("last_status"),
-            "path": str(path),
-        }
+    for cases_dir in cases_dirs:
+        for path in sorted(cases_dir.glob("C*.md")):
+            meta, _ = read_case_md(path)
+            if meta.get("id") is None:
+                continue
+            cases[str(path)] = {
+                "id": int(meta["id"]),
+                "project": case_project(path),
+                "section": meta.get("section"),
+                "type": meta.get("type"),
+                "priority": meta.get("priority"),
+                "refs": meta.get("refs") or [],
+                "last_status": meta.get("last_status"),
+                "path": str(path),
+            }
     return cases
 
 
@@ -115,48 +118,50 @@ def rank_key(record: dict, reasons: set[str]) -> tuple[int, int, int, int, int]:
 
 
 def build_scope(
-    cfg: Config,
-    project_id: int,
+    cases_dirs: Sequence[Path],
     terms: list[str],
     refs: list[str],
     with_sections: bool,
     failed_only: bool,
 ) -> dict:
-    cases_dir = require_cases_dir(cfg, project_id)
-    cases = load_cases(cases_dir)
+    cases = load_cases(cases_dirs)
     wanted_refs = {ref.lower() for ref in refs}
     reasons: dict[str, set[str]] = {}
 
     for term in terms:
-        for path in rg_hits(term, cases_dir, whole_word=True):
-            name = Path(path).name
-            if name in cases:
-                reasons.setdefault(name, set()).add(f"term:{term}")
+        for path in rg_hits(term, cases_dirs, whole_word=True):
+            if path in cases:
+                reasons.setdefault(path, set()).add(f"term:{term}")
 
-    for name, record in cases.items():
+    for path, record in cases.items():
         matched = [ref for ref in record["refs"] if str(ref).lower() in wanted_refs]
         for ref in matched:
-            reasons.setdefault(name, set()).add(f"ref:{ref}")
+            reasons.setdefault(path, set()).add(f"ref:{ref}")
 
     if with_sections:
-        sections = {cases[name]["section"] for name in reasons if cases[name]["section"]}
-        for name, record in cases.items():
-            if record["section"] in sections:
-                reasons.setdefault(name, set()).add(f"section:{record['section']}")
+        seeded = {
+            (cases[path]["project"], cases[path]["section"])
+            for path in reasons
+            if cases[path]["section"]
+        }
+        for path, record in cases.items():
+            if (record["project"], record["section"]) in seeded:
+                reasons.setdefault(path, set()).add(f"section:{record['section']}")
 
-    for name in list(reasons):
-        if cases[name]["last_status"] == "failed":
-            reasons[name].add("failed")
+    for path in list(reasons):
+        if cases[path]["last_status"] == "failed":
+            reasons[path].add("failed")
 
     selected = [
-        (cases[name], why)
-        for name, why in reasons.items()
-        if not failed_only or cases[name]["last_status"] == "failed"
+        (cases[path], why)
+        for path, why in reasons.items()
+        if not failed_only or cases[path]["last_status"] == "failed"
     ]
     selected.sort(key=lambda pair: rank_key(*pair))
     return {
         "case_ids": [record["id"] for record, _ in selected],
         "reasons": {str(record["id"]): sort_reasons(why) for record, why in selected},
+        "projects": {str(record["id"]): record["project"] for record, _ in selected},
         "terms": terms,
         "refs": [ref.upper() for ref in refs],
     }
@@ -168,14 +173,16 @@ def scope(
     failed: bool = typer.Option(False, "--failed", help="Keep only cases whose last run failed"),
     section: bool = typer.Option(False, "--section", help="Expand to sibling cases per section"),
     limit: int = typer.Option(DEFAULT_LIMIT, "--limit", help="Maximum cases"),
-    project: int | None = typer.Option(None, "--project", help="Project id override"),
+    project: int | None = typer.Option(
+        None, "--project", help="Narrow to one project; default is every cached project"
+    ),
 ) -> None:
     """Build a regression scope from a diff and/or ticket keys (offline)."""
     if not diff and not refs:
         fail("usage: testrail scope [--diff PATH] [--refs KEYS] (at least one required)", 2)
 
     cfg = load_config()
-    project_id = resolve_project(cfg, project)
+    cases_dirs = cases_dirs_for(cfg, project)
 
     terms: list[str] = []
     ticket_keys = [key.upper() for key in sorted(split_keys(refs))]
@@ -186,8 +193,9 @@ def scope(
             if ticket not in ticket_keys:
                 ticket_keys.append(ticket)
 
-    result = build_scope(cfg, project_id, terms, ticket_keys, section, failed)
+    result = build_scope(cases_dirs, terms, ticket_keys, section, failed)
     result["case_ids"] = result["case_ids"][:limit]
     keep = {str(case_id) for case_id in result["case_ids"]}
     result["reasons"] = {k: v for k, v in result["reasons"].items() if k in keep}
+    result["projects"] = {k: v for k, v in result["projects"].items() if k in keep}
     emit(result)

@@ -34,6 +34,10 @@ def fixture(name: str) -> dict | list:
 
 
 def _payload_for(url: str) -> dict | list:
+    if "get_projects" in url:
+        return fixture("projects")
+    if f"get_project/{PROJECT}" in url:
+        return {"id": PROJECT, "name": "Fixture Project", "is_completed": False}
     if f"get_suites/{PROJECT}" in url:
         return fixture("suites")
     if "get_case_types" in url:
@@ -108,9 +112,18 @@ def test_search_reads_what_sync_wrote(synced):
         "refs": ["PAY-883", "PAY-900"],
         "last_status": "failed",
         "path": str(synced / "cases" / "C1042.md"),
+        "project": PROJECT,
+        "project_name": "Fixture Project",
         "hits": hits[0]["hits"],
     }
     assert hits[0]["hits"]
+
+
+def test_search_without_a_project_still_finds_the_synced_one(synced, monkeypatch):
+    monkeypatch.delenv("TESTRAIL_PROJECT_ID")
+    hits = invoke("search", "refresh token")
+    assert [hit["id"] for hit in hits] == [1042]
+    assert hits[0]["project"] == PROJECT
 
 
 def test_search_filters_agree_with_the_synced_metadata(synced):
