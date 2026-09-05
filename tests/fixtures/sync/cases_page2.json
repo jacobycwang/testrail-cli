@@ -1,8 +1,11 @@
 {
   "offset": 2,
   "limit": 250,
-  "size": 1,
-  "_links": {"next": null, "prev": null},
+  "size": 2,
+  "_links": {
+    "next": null,
+    "prev": null
+  },
   "cases": [
     {
       "id": 1044,
@@ -12,15 +15,39 @@
       "type_id": 7,
       "priority_id": 2,
       "updated_on": 1787216400,
-      "labels": [{"id": 1, "title": "smoke"}],
+      "labels": [
+        {
+          "id": 1,
+          "title": "smoke"
+        }
+      ],
       "custom_steps_separated": [
         {
           "content": "Sign out from device A",
           "expected": "Device B is signed out too",
           "additional_info": "Device B polls the session endpoint every 30s"
         },
-        {"shared_step_id": 77}
+        {
+          "shared_step_id": 77
+        }
       ]
+    },
+    {
+      "id": 1045,
+      "title": "Company lookup returns 404 for a retired company",
+      "section_id": 12,
+      "suite_id": 2,
+      "type_id": 7,
+      "priority_id": 2,
+      "updated_on": 1787130000,
+      "custom_preconds": "<p>A retired company id <b>4821</b> exists &amp; is soft-deleted</p>",
+      "custom_steps_separated": [
+        {
+          "content": "<p>1. Request an inline API ... (e.g. GET /companies/{companyId})</p><p>2. Check the resonpse http status</p>",
+          "expected": "<ul><li>Status is 404</li><li>Body carries <code>company_retired</code></li></ul>"
+        }
+      ],
+      "custom_expected": "<p>No <i>stale</i> company payload leaks to the caller</p>"
     }
   ]
 }

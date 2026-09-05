@@ -10,6 +10,7 @@ from tr.auth import get_api_key
 from tr.config import Config, load_config
 from tr.http import APIClient, APIError
 from tr.output import emit, fail, hint
+from tr.textutil import html_to_text
 
 DEFAULT_SLEEP = 0.35
 DEFAULT_RUNS = 5
@@ -266,6 +267,11 @@ def _text(value: Any) -> str:
     return str(value).replace("\r\n", "\n").replace("\r", "\n")
 
 
+def _rich(value: Any) -> str:
+    """Rich-text fields arrive as HTML on newer cases and as plain text on older ones."""
+    return html_to_text(_text(value))
+
+
 def _split_refs(refs: Any) -> list[str]:
     return [ref for ref in REFS_SPLIT.split(_text(refs).strip()) if ref]
 
@@ -277,15 +283,15 @@ def _labels(labels: Any) -> list[str]:
 
 
 def _render_body(case: dict, shared_steps: dict[int, dict]) -> str:
-    body = f"# Preconditions\n{_text(case.get('custom_preconds')).strip()}\n\n# Steps\n"
+    body = f"# Preconditions\n{_rich(case.get('custom_preconds')).strip()}\n\n# Steps\n"
     steps = _expand_steps(case.get("custom_steps_separated"), shared_steps)
     if steps:
         body += "".join(_step_block(n, step) for n, step in enumerate(steps, start=1))
     else:
-        free_text = _text(case.get("custom_steps")).strip()
+        free_text = _rich(case.get("custom_steps")).strip()
         if free_text:
             body += f"{free_text}\n"
-    expected = _text(case.get("custom_expected")).strip()
+    expected = _rich(case.get("custom_expected")).strip()
     if expected:
         body += f"\n# Expected\n{expected}\n"
     return body
@@ -312,11 +318,11 @@ def _expand_steps(raw: Any, shared_steps: dict[int, dict]) -> list[dict]:
 
 
 def _step_block(index: int, step: dict) -> str:
-    block = f"{index}. {_text(step.get('content')).strip()}\n"
-    expected = _text(step.get("expected")).strip()
+    block = f"{index}. {_rich(step.get('content')).strip()}\n"
+    expected = _rich(step.get("expected")).strip()
     if expected:
         block += f"   Expected: {expected}\n"
-    info = _text(step.get("additional_info")).strip()
+    info = _rich(step.get("additional_info")).strip()
     if info:
         block += f"   Info: {info}\n"
     return block

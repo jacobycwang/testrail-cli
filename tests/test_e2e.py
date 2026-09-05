@@ -74,7 +74,7 @@ def synced(cache_dir, monkeypatch, no_sleep):
         )
         result = runner.invoke(app, ["sync", "--project", str(PROJECT), "--sleep", "0"])
     assert result.exit_code == 0, result.output
-    assert json.loads(result.stdout)["cases_written"] == 3
+    assert json.loads(result.stdout)["cases_written"] == 4
 
     def explode(*args, **kwargs):
         raise RuntimeError("network call attempted after sync")

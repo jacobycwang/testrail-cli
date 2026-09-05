@@ -94,7 +94,7 @@ def test_full_sync_writes_the_cache_layout(testrail, cache_dir):
     out = json.loads(result.stdout)
     project = cache_dir / str(PROJECT)
     assert out["project_id"] == PROJECT
-    assert out["cases_written"] == 3
+    assert out["cases_written"] == 4
     assert out["sections"] == 3
     assert out["shared_steps"] == 1
     assert out["runs_scanned"] == 2
@@ -103,6 +103,7 @@ def test_full_sync_writes_the_cache_layout(testrail, cache_dir):
     assert (project / "cases" / "C1042.md").is_file()
     assert (project / "cases" / "C1043.md").is_file()
     assert (project / "cases" / "C1044.md").is_file()
+    assert (project / "cases" / "C1045.md").is_file()
     assert (project / "shared_steps" / "S5.json").is_file()
     assert [s["id"] for s in json.loads((project / "sections.json").read_text())] == [10, 11, 12]
 
@@ -234,6 +235,38 @@ def test_rg_finds_a_word_that_only_appears_in_a_step(testrail, cache_dir):
     assert found.returncode == 0, found.stderr
     assert found.stdout.strip().endswith("C1042.md")
     assert "invalid_grant" not in front_matter(cases / "C1042.md")["title"]
+
+
+def test_html_rich_text_is_flattened_into_the_markdown_body(testrail, cache_dir):
+    assert run_sync().exit_code == 0
+    body = body_of(cache_dir / str(PROJECT) / "cases" / "C1045.md")
+    assert "A retired company id 4821 exists & is soft-deleted" in body
+    assert "1. Request an inline API ... (e.g. GET /companies/{companyId})" in body
+    assert "2. Check the resonpse http status" in body
+    assert "- Status is 404" in body
+    assert "Body carries company_retired" in body
+    assert "# Expected\nNo stale company payload leaks to the caller" in body
+
+
+def test_no_written_file_keeps_html_markup(testrail, cache_dir):
+    assert run_sync().exit_code == 0
+    for path in (cache_dir / str(PROJECT)).rglob("*"):
+        if path.is_file():
+            assert "<p>" not in path.read_text(), path
+
+
+def test_rg_finds_a_word_from_inside_an_html_paragraph(testrail, cache_dir):
+    if shutil.which("rg") is None:
+        pytest.skip("ripgrep is not installed")
+    assert run_sync().exit_code == 0
+    cases = cache_dir / str(PROJECT) / "cases"
+    found = subprocess.run(
+        ["rg", "--files-with-matches", "companyId", str(cases)],
+        capture_output=True,
+        text=True,
+    )
+    assert found.returncode == 0, found.stderr
+    assert found.stdout.strip().endswith("C1045.md")
 
 
 def test_no_project_configured_exits_3(testrail):
