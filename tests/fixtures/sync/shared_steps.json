@@ -1,0 +1,17 @@
+{
+  "offset": 0,
+  "limit": 250,
+  "size": 1,
+  "_links": {"next": null, "prev": null},
+  "shared_steps": [
+    {
+      "id": 5,
+      "title": "Sign in as a seeded QA user",
+      "project_id": 34,
+      "custom_steps_separated": [
+        {"content": "Open /login in a clean session", "expected": "The login form renders"},
+        {"content": "Submit the seeded QA credentials", "expected": "The dashboard loads"}
+      ]
+    }
+  ]
+}

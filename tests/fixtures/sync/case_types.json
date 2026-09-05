@@ -1,0 +1,4 @@
+[
+  {"id": 3, "name": "Regression", "is_default": false},
+  {"id": 7, "name": "Functional", "is_default": true}
+]

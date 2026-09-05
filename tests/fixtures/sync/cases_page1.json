@@ -1,0 +1,37 @@
+{
+  "offset": 0,
+  "limit": 2,
+  "size": 2,
+  "_links": {"next": "/api/v2/get_cases/34&suite_id=2&limit=250&offset=2", "prev": null},
+  "cases": [
+    {
+      "id": 1042,
+      "title": "Login with an expired refresh token",
+      "section_id": 11,
+      "suite_id": 2,
+      "type_id": 3,
+      "priority_id": 4,
+      "refs": "PAY-883, PAY-900",
+      "updated_on": 1788220800,
+      "custom_preconds": "A seeded QA user exists\r\nThe refresh token is already expired",
+      "custom_steps_separated": [
+        {"content": "Open the sign-in page", "expected": "The sign-in form is visible"},
+        {"shared_step_id": 5},
+        {"content": "POST the expired refresh token to /oauth/token", "expected": "The response body carries error invalid_grant"}
+      ]
+    },
+    {
+      "id": 1043,
+      "title": "Deposit refund falls back to the original card",
+      "section_id": 12,
+      "suite_id": 2,
+      "type_id": 7,
+      "priority_id": 2,
+      "refs": null,
+      "updated_on": 1787920200,
+      "custom_preconds": "A paid deposit exists",
+      "custom_steps": "Open the deposit in the host portal, hit Refund, and confirm.",
+      "custom_expected": "The refund lands back on the original card within 5 minutes."
+    }
+  ]
+}

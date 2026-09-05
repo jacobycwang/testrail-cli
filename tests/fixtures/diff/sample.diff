@@ -1,0 +1,14 @@
+diff --git a/services/auth/token_service.py b/services/auth/token_service.py
+index 3f9a1c2..b71d004 100644
+--- a/services/auth/token_service.py
++++ b/services/auth/token_service.py
+@@ -18,8 +18,10 @@ class TokenService:
+     def issue(self, grant):
+         return self._exchange(grant)
+ 
+-    def refresh_token(self, grant):
+-        return self._exchange(grant)
++    def refresh_token(self, grant):
++        # PAY-900 rotate on every reuse
++        self._audit(grant)
++        return self._exchange(grant, rotate=True)

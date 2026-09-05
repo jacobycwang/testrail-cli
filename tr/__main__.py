@@ -1,6 +1,6 @@
 import typer
 
-from tr import api_cmd, auth, docs_cmd
+from tr import api_cmd, auth, case_cmd, docs_cmd, scope, search, sync
 from tr.output import set_json
 
 app = typer.Typer(
@@ -22,6 +22,11 @@ def root(
 app.add_typer(auth.app, name="auth")
 app.command("api")(api_cmd.api)
 app.command("docs")(docs_cmd.docs)
+app.command("sync")(sync.sync)
+app.add_typer(case_cmd.case_app, name="case")
+app.add_typer(case_cmd.run_app, name="run")
+app.command("search")(search.search)
+app.command("scope")(scope.scope)
 
 # Sub-apps registered by other modules: sync, search, scope, case, run
 # Each owner adds one import above and one app.add_typer(...)/app.command(...) line here.

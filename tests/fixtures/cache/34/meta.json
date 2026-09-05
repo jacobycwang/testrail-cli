@@ -1,0 +1,60 @@
+{
+  "last_sync": "2026-09-01T00:00:00Z",
+  "project_id": 34,
+  "suites": {
+    "2": "Auth",
+    "3": "Payments",
+    "4": "Kiosk"
+  },
+  "sections": {
+    "10": {
+      "name": "Auth",
+      "parent_id": null,
+      "suite_id": 2,
+      "path": "Auth"
+    },
+    "11": {
+      "name": "Token",
+      "parent_id": 10,
+      "suite_id": 2,
+      "path": "Auth/Token"
+    },
+    "20": {
+      "name": "Payments",
+      "parent_id": null,
+      "suite_id": 3,
+      "path": "Payments"
+    },
+    "21": {
+      "name": "Refund",
+      "parent_id": 20,
+      "suite_id": 3,
+      "path": "Payments/Refund"
+    },
+    "30": {
+      "name": "Kiosk",
+      "parent_id": null,
+      "suite_id": 4,
+      "path": "Kiosk"
+    },
+    "31": {
+      "name": "Checkout",
+      "parent_id": 30,
+      "suite_id": 4,
+      "path": "Kiosk/Checkout"
+    }
+  },
+  "types": {
+    "1": "Regression",
+    "2": "Smoke"
+  },
+  "priorities": {
+    "1": "Low",
+    "2": "Medium",
+    "3": "High"
+  },
+  "statuses": {
+    "1": "passed",
+    "5": "failed"
+  }
+}

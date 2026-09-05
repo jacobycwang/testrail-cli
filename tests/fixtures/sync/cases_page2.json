@@ -1,0 +1,26 @@
+{
+  "offset": 2,
+  "limit": 250,
+  "size": 1,
+  "_links": {"next": null, "prev": null},
+  "cases": [
+    {
+      "id": 1044,
+      "title": "Sign out clears every device session",
+      "section_id": 10,
+      "suite_id": 2,
+      "type_id": 7,
+      "priority_id": 2,
+      "updated_on": 1787216400,
+      "labels": [{"id": 1, "title": "smoke"}],
+      "custom_steps_separated": [
+        {
+          "content": "Sign out from device A",
+          "expected": "Device B is signed out too",
+          "additional_info": "Device B polls the session endpoint every 30s"
+        },
+        {"shared_step_id": 77}
+      ]
+    }
+  ]
+}

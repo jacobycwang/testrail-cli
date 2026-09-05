@@ -1,22 +1,27 @@
 # testrail-cli (`tr`)
 
-Thin TestRail CLI for coding agents. stdout is JSON, hints go to stderr, writes are dry-run by default.
+Thin agent CLI for TestRail. Not a `trcli` replacement (`trcli` stays for JUnit in CI).
 
-## Install
+## Install & Requirements
+`uv tool install .` or `uv sync` + `uv run tr`. Requires Python >=3.12 and `rg` on PATH.
 
-    uv tool install .          # or: uv sync && uv run tr --help
-
-Needs Python >=3.12 and `rg` (ripgrep) on PATH.
-
-## Auth
-
-    tr auth login              # saves host/email to ~/.config/tr/config.yml, key to the OS keyring
-    tr auth status             # never prints the key; TESTRAIL_API_KEY env also works
+## Auth & Config
+Auth via `TESTRAIL_API_KEY` env var or keyring via `tr auth login` (use env on headless Linux).
+Config file (`~/.config/tr/config.yml` — no secrets):
+```yaml
+host: https://example.testrail.io
+email: agent@example.com
+project_id: 1
+cache_dir: ~/.cache/tr
+```
 
 ## Examples
+- `tr sync --project 1`
+- `tr search "payment" --type Regression`
+- `tr scope --diff pr.diff`
+- `tr case get 42`
+- `tr run add --case-ids 1,2 --name "Smoke"` # dry run; add --commit to send
+- `tr api get_case/42`
 
-    tr api get_case/42
-    tr api get_cases/34 --query suite_id=7,limit=250 --paginate
-    tr api add_run/34 --data run.json            # dry run; add --commit to send
-    tr docs && tr docs quirks
-    tr docs search pagination
+Commands: `tr auth`, `tr api`, `tr docs`, `tr sync`, `tr search`, `tr scope`, `tr case`, `tr run`.
+See [skill.md](skill.md) for agent usage guide and [docs/](docs/) for reference (`tr docs quirks`).
