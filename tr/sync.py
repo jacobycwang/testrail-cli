@@ -15,6 +15,8 @@ from tr.textutil import html_to_text
 DEFAULT_SLEEP = 0.35
 DEFAULT_RUNS = 5
 CASE_PAGE_SIZE = 250
+# sync must walk whole collections; the CLI default cap exists for ad-hoc `api` calls
+SYNC_MAX_PAGES = 100_000
 UNTESTED = "untested"
 LIST_META_KEYS = frozenset({"_links", "offset", "limit", "size", "pages"})
 REFS_SPLIT = re.compile(r"[,\s]+")
@@ -73,7 +75,7 @@ def _project_name(client: APIClient, project_id: int) -> str | None:
 
 def _active_projects(client: APIClient) -> list[tuple[int, str | None]]:
     """Every project TestRail has not marked completed, oldest id first."""
-    projects = _items(client.paginate("get_projects"), "projects")
+    projects = _items(client.paginate("get_projects", max_pages=SYNC_MAX_PAGES), "projects")
     active = [p for p in projects if p.get("id") is not None and not p.get("is_completed")]
     hint(f"{len(active)} active projects of {len(projects)}")
     return [(int(p["id"]), p.get("name")) for p in active]
@@ -184,10 +186,17 @@ def _reference_data(client: APIClient, project_id: int, out_dir: Path) -> dict:
     if suites:
         for suite in suites:
             sections += _items(
-                client.paginate(f"get_sections/{project_id}", {"suite_id": suite["id"]}), "sections"
+                client.paginate(
+                    f"get_sections/{project_id}",
+                    {"suite_id": suite["id"]},
+                    max_pages=SYNC_MAX_PAGES,
+                ),
+                "sections",
             )
     else:
-        sections = _items(client.paginate(f"get_sections/{project_id}"), "sections")
+        sections = _items(
+            client.paginate(f"get_sections/{project_id}", max_pages=SYNC_MAX_PAGES), "sections"
+        )
 
     cache.dump_json(out_dir / "sections.json", sections)
     hint(f"{len(suites)} suites, {len(sections)} sections")
@@ -236,13 +245,17 @@ def _fetch_cases(
             params = {"suite_id": suite_id, **params}
         if updated_after is not None:
             params["updated_after"] = updated_after
-        cases += _items(client.paginate(f"get_cases/{project_id}", params), "cases")
+        cases += _items(
+            client.paginate(f"get_cases/{project_id}", params, max_pages=SYNC_MAX_PAGES), "cases"
+        )
     hint(f"fetched {len(cases)} cases")
     return cases
 
 
 def _fetch_shared_steps(client: APIClient, project_id: int, out_dir: Path) -> dict[int, dict]:
-    steps = _items(client.paginate(f"get_shared_steps/{project_id}"), "shared_steps")
+    steps = _items(
+        client.paginate(f"get_shared_steps/{project_id}", max_pages=SYNC_MAX_PAGES), "shared_steps"
+    )
     shared = {}
     for step in steps:
         step_id = step.get("id")
@@ -261,15 +274,23 @@ def _fetch_runs(
     if limit <= 0:
         return cache.load_json(latest_path) or {}, 0
 
-    runs = _items(client.paginate(f"get_runs/{project_id}", {"is_completed": 0}), "runs")
-    runs += _items(client.paginate(f"get_runs/{project_id}", {"is_completed": 1}), "runs")
+    runs = _items(
+        client.paginate(f"get_runs/{project_id}", {"is_completed": 0}, max_pages=SYNC_MAX_PAGES),
+        "runs",
+    )
+    runs += _items(
+        client.paginate(f"get_runs/{project_id}", {"is_completed": 1}, max_pages=SYNC_MAX_PAGES),
+        "runs",
+    )
     runs.sort(key=lambda run: run.get("created_on") or 0, reverse=True)
     recent = runs[:limit]
 
     latest: dict[str, dict] = {}
     for run in recent:
         run_id = run.get("id")
-        for test in _items(client.paginate(f"get_tests/{run_id}"), "tests"):
+        for test in _items(
+            client.paginate(f"get_tests/{run_id}", max_pages=SYNC_MAX_PAGES), "tests"
+        ):
             case_id = test.get("case_id")
             status = statuses.get(str(test.get("status_id")))
             if case_id is None or not status or status == UNTESTED or str(case_id) in latest:

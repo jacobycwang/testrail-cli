@@ -336,3 +336,33 @@ def test_sections_always_scoped_to_suite_id(testrail, cache_dir):
     section_urls = [u for u in testrail if f"get_sections/{PROJECT}" in u]
     assert section_urls, testrail
     assert all("suite_id=2" in u for u in section_urls), section_urls
+
+
+def test_sync_fetches_cases_beyond_the_default_page_cap(no_sleep, cache_dir):
+    """Big projects exceed DEFAULT_MAX_PAGES; sync must follow every next link."""
+    total = 57
+    template = fixture("cases_page1")["cases"][0]
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        url = str(request.url)
+        if f"get_cases/{PROJECT}" in url:
+            offset = int(re.search(r"offset=(\d+)", url).group(1)) if "offset=" in url else 0
+            nxt = f"/api/v2/get_cases/{PROJECT}&suite_id=2&limit=1&offset={offset + 1}"
+            return httpx.Response(
+                200,
+                json={
+                    "offset": offset,
+                    "limit": 1,
+                    "size": 1,
+                    "_links": {"next": nxt if offset + 1 < total else None, "prev": None},
+                    "cases": [{**template, "id": 5000 + offset}],
+                },
+            )
+        return httpx.Response(200, json=_payload_for(url))
+
+    with respx.mock:
+        respx.get(url__startswith=f"{HOST}/index.php").mock(side_effect=handler)
+        result = run_sync()
+
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.stdout)["cases_written"] == total
