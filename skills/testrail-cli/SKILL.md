@@ -5,7 +5,7 @@ description: Use the `tr` CLI to read and search TestRail cases, build a regress
 
 ## Setup check (run first)
 ```bash
-tr auth status || uv tool install git+https://github.com/jacobycwang/testrail-cli
+tr auth status || uv tool install git+ssh://git@github.com/jacobycwang/testrail-cli
 ```
 - `configured: false` in the output -> stop and ask the user to run `tr auth login` (or set `TESTRAIL_HOST`, `TESTRAIL_EMAIL`, `TESTRAIL_API_KEY` in CI). Never ask for the key in chat.
 - `project_id: null` -> pass `--project ID` to every command, or ask the user which project.

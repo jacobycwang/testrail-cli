@@ -18,7 +18,7 @@ No clone needed. You need Python 3.12+, [uv](https://docs.astral.sh/uv/) and rip
 ```bash
 # 1. Install the CLI
 brew install uv ripgrep            # macOS; on Linux use your package manager
-uv tool install git+https://github.com/jacobycwang/testrail-cli
+uv tool install git+ssh://git@github.com/jacobycwang/testrail-cli
 
 # 2. Log in once (host, email, API key -> keychain)
 tr auth login
