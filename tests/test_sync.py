@@ -325,3 +325,14 @@ def test_single_project_sync_stores_the_project_name(testrail, cache_dir):
     assert run_sync().exit_code == 0
     meta = json.loads((cache_dir / str(PROJECT) / "meta.json").read_text())
     assert meta["project_name"] == "Fixture Project"
+
+
+def test_sections_always_scoped_to_suite_id(testrail, cache_dir):
+    """Multi-suite-mode projects reject get_sections without suite_id even when
+    they hold a single suite, so every sections request names its suite."""
+    result = run_sync()
+    assert result.exit_code == 0, result.output
+
+    section_urls = [u for u in testrail if f"get_sections/{PROJECT}" in u]
+    assert section_urls, testrail
+    assert all("suite_id=2" in u for u in section_urls), section_urls

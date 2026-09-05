@@ -178,8 +178,10 @@ def _reference_data(client: APIClient, project_id: int, out_dir: Path) -> dict:
     priorities = _named(client.get("get_priorities"), "priorities")
     statuses = _named(client.get("get_statuses"), "statuses")
 
+    # Multi-suite-mode projects reject get_sections without suite_id even when
+    # they hold a single suite, so always scope by suite when one exists.
     sections: list[dict] = []
-    if len(suites) > 1:
+    if suites:
         for suite in suites:
             sections += _items(
                 client.paginate(f"get_sections/{project_id}", {"suite_id": suite["id"]}), "sections"
