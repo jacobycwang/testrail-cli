@@ -1,3 +1,5 @@
+import json
+
 import keyring
 import keyring.errors
 import pytest
@@ -101,3 +103,38 @@ def test_auth_logout_ignores_missing_password(monkeypatch):
     monkeypatch.setattr(keyring, "delete_password", missing)
     result = runner.invoke(app, ["auth", "logout"])
     assert result.exit_code == 0
+
+
+def test_status_unconfigured_exits_0_with_one_hint(monkeypatch):
+    monkeypatch.setattr(keyring, "get_password", lambda *a, **k: None)
+    result = runner.invoke(app, ["auth", "status"])
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["configured"] is False
+    assert payload["key_source"] is None
+    assert result.stderr.splitlines() == [
+        "hint: set TESTRAIL_HOST, TESTRAIL_EMAIL, TESTRAIL_API_KEY (CI) "
+        "or run `tr auth login`"
+    ]
+
+
+def test_status_configured_is_quiet_and_hides_the_key(monkeypatch):
+    monkeypatch.setenv("TESTRAIL_HOST", "https://example.testrail.io")
+    monkeypatch.setenv("TESTRAIL_EMAIL", "qa@example.com")
+    monkeypatch.setenv("TESTRAIL_API_KEY", "secret-key-3391")
+    result = runner.invoke(app, ["auth", "status"])
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["configured"] is True
+    assert payload["key_source"] == "env"
+    assert result.stderr == ""
+    assert "secret-key-3391" not in result.stdout
+
+
+def test_status_without_a_key_is_not_configured(monkeypatch):
+    monkeypatch.setenv("TESTRAIL_HOST", "https://example.testrail.io")
+    monkeypatch.setenv("TESTRAIL_EMAIL", "qa@example.com")
+    monkeypatch.setattr(keyring, "get_password", lambda *a, **k: None)
+    result = runner.invoke(app, ["auth", "status"])
+    assert json.loads(result.stdout)["configured"] is False
+    assert "hint: set TESTRAIL_HOST" in result.stderr

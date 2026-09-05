@@ -135,3 +135,27 @@ def test_data_from_stdin(tmp_path):
     )
     assert result.exit_code == 0, result.output
     assert json.loads(route.calls[0].request.content) == {"name": "from stdin"}
+
+
+def test_paginate_dry_run_reports_the_page_cap():
+    result = runner.invoke(app, ["api", "get_cases/1", "--paginate", "--dry-run"])
+    assert result.exit_code == 0, result.output
+    out = json.loads(result.stdout)
+    assert out["paginate"] is True
+    assert out["max_pages"] == 50
+
+
+def test_dry_run_without_paginate_omits_the_pagination_keys():
+    result = runner.invoke(app, ["api", "get_cases/1", "--dry-run"])
+    out = json.loads(result.stdout)
+    assert "paginate" not in out
+    assert "max_pages" not in out
+
+
+def test_write_dry_run_omits_the_pagination_keys(tmp_path):
+    body = tmp_path / "run.json"
+    body.write_text(json.dumps({"name": "smoke"}))
+    result = runner.invoke(app, ["api", "add_run/1", "--data", str(body)])
+    out = json.loads(result.stdout)
+    assert "paginate" not in out
+    assert "max_pages" not in out

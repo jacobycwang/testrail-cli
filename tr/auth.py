@@ -9,6 +9,9 @@ from tr.output import emit, fail, hint
 
 SERVICE = "testrail-cli"
 KEY_ENV = "TESTRAIL_API_KEY"
+NOT_CONFIGURED_HINT = (
+    "hint: set TESTRAIL_HOST, TESTRAIL_EMAIL, TESTRAIL_API_KEY (CI) or run `tr auth login`"
+)
 NO_KEY_HELP = (
     f"no TestRail API key. Run `tr auth login`, or set {KEY_ENV} in the environment "
     f"(headless Linux without a Secret Service daemon must use {KEY_ENV})"
@@ -84,8 +87,12 @@ def status() -> None:
         key_source = "keyring"
     else:
         key_source = None
+    configured = bool(cfg.host and cfg.email and key_source)
+    if not configured:
+        hint(NOT_CONFIGURED_HINT)
     emit(
         {
+            "configured": configured,
             "host": cfg.host,
             "email": cfg.email,
             "project_id": cfg.project_id,

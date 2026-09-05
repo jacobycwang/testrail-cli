@@ -12,6 +12,7 @@ DEFAULT_RETRY_AFTER = 60.0
 MAX_RETRY_AFTER = 120.0
 LIST_META_KEYS = frozenset({"_links", "offset", "limit", "size"})
 MAX_ERROR_BODY = 400
+DEFAULT_MAX_PAGES = 50
 
 
 def build_url(host: str | None, uri: str, params: dict[str, Any] | None = None) -> str:
@@ -61,7 +62,7 @@ class APIClient:
         self,
         uri: str,
         params: dict[str, Any] | None = None,
-        max_pages: int = 50,
+        max_pages: int = DEFAULT_MAX_PAGES,
         sleep_s: float | None = None,
     ) -> Any:
         throttle = self.sleep_s if sleep_s is None else sleep_s

@@ -8,6 +8,7 @@ from pathlib import Path
 import httpx
 import pytest
 import respx
+import typer.main
 from typer.testing import CliRunner
 
 from tr.__main__ import app
@@ -257,3 +258,49 @@ def test_429_honors_retry_after_capped_at_120s(retry_after, expected, no_sleep):
 def test_api_error_message_carries_status_and_body_only():
     message = str(APIError(403, "No access to the project"))
     assert message == "TestRail returned 403: No access to the project"
+
+
+@pytest.mark.parametrize(
+    ("query", "topic"),
+    [("TESTRAIL_HOST", "auth"), ("TR_CACHE_DIR", "auth"), ("pagination", "quirks")],
+)
+def test_bundled_docs_are_searchable_for_key_terms(query, topic, no_network):
+    result = runner.invoke(app, ["docs", "search", query])
+    assert result.exit_code == 0, result.output
+    assert topic in {hit["topic"] for hit in json.loads(result.stdout)}
+
+
+SKILL_MD = Path(__file__).parent.parent / "skill.md"
+HELP_TARGETS = [
+    ["api"],
+    ["docs"],
+    ["sync"],
+    ["search"],
+    ["scope"],
+    ["case", "get"],
+    ["run", "add"],
+]
+
+
+def _contract_block() -> str:
+    return SKILL_MD.read_text().split("## Command contract")[1].split("```")[1]
+
+
+def _declared_options(argv: list[str]) -> set[str]:
+    command = typer.main.get_command(app)
+    for name in argv:
+        command = command.commands[name]
+    return {opt for param in command.params for opt in param.opts if opt.startswith("--")}
+
+
+@pytest.mark.parametrize("argv", HELP_TARGETS, ids=lambda a: " ".join(a))
+def test_skill_md_contract_lists_every_real_option(argv):
+    contract = _contract_block()
+    missing = {opt for opt in _declared_options(argv) - {"--help"} if opt not in contract}
+    assert not missing, f"skill.md contract is missing {sorted(missing)} for {' '.join(argv)}"
+
+
+def test_skill_md_documents_the_refused_delete_exit_code():
+    exit_codes = SKILL_MD.read_text().split("## Exit codes")[1]
+    assert "delete_*" in exit_codes
+    assert "2" in exit_codes

@@ -6,7 +6,7 @@ import typer
 
 from tr.auth import get_api_key
 from tr.config import Config, load_config
-from tr.http import APIClient, APIError, build_url
+from tr.http import DEFAULT_MAX_PAGES, APIClient, APIError, build_url
 from tr.output import emit, emit_capped, fail
 
 REFUSED_PREFIX = "delete"
@@ -84,20 +84,21 @@ def api(
         emit({"dry_run": True, "method": "POST", "url": url, "body": body})
         return
     if dry_run:
-        emit(
-            {
-                "dry_run": True,
-                "method": "GET" if is_get else "POST",
-                "url": url,
-                "body": body,
-            }
-        )
+        preview = {
+            "dry_run": True,
+            "method": "GET" if is_get else "POST",
+            "url": url,
+            "body": body,
+        }
+        if paginate:
+            preview |= {"paginate": True, "max_pages": DEFAULT_MAX_PAGES}
+        emit(preview)
         return
 
     client = _client(cfg, sleep)
     try:
         if paginate:
-            result = client.paginate(uri, params, sleep_s=sleep)
+            result = client.paginate(uri, params, DEFAULT_MAX_PAGES, sleep_s=sleep)
         elif is_get:
             result = client.get(uri, params)
         else:

@@ -22,6 +22,13 @@ description: Use the `tr` CLI to read/search TestRail cases, build regression sc
 - multi-value param (one param, comma list): `tr api get_tests/88 --query status_id=4,5`
 - api dry-run POST with --data: `tr api add_case/2 --data case.json`
 
+## Environment
+- `TESTRAIL_HOST`, `TESTRAIL_EMAIL`, `TESTRAIL_PROJECT_ID` — override config.yml.
+- `TESTRAIL_API_KEY` — the key (CI/headless); otherwise the keyring via `tr auth login`.
+- `TR_CONFIG`, `TR_CACHE_DIR`, `TR_DOCS_DIR` — config path, cache root, docs dir.
+- Keyring service `testrail-cli`, account `{email}@{host}`. Never a flag, never a file.
+- Full reference: `tr docs auth`.
+
 ## Command contract
 ```
 tr auth login | status | logout
@@ -37,3 +44,4 @@ tr run add --case-ids 1,2 --name "..." [--project ID] [--suite ID] [--descriptio
 
 ## Exit codes
 0 ok, 1 error, 2 usage, 3 auth/config, 4 HTTP/API, 5 not in cache (run tr sync).
+A refused `delete_*` call exits 2.

@@ -15,6 +15,13 @@ project_id: 1
 cache_dir: ~/.cache/tr
 ```
 
+## Environment
+- `TESTRAIL_HOST`, `TESTRAIL_EMAIL`, `TESTRAIL_PROJECT_ID` — override config.yml.
+- `TESTRAIL_API_KEY` — the key (CI/headless); otherwise the keyring via `tr auth login`.
+- `TR_CONFIG`, `TR_CACHE_DIR`, `TR_DOCS_DIR` — config path, cache root, docs dir.
+- Keyring service `testrail-cli`, account `{email}@{host}`. Never a flag, never a file.
+- Full reference: `tr docs auth`.
+
 ## Examples
 - `tr sync --project 1`
 - `tr search "payment" --type Regression`
@@ -26,4 +33,4 @@ cache_dir: ~/.cache/tr
 - `tr docs quirks`
 
 Commands: `tr auth`, `tr api`, `tr docs`, `tr sync`, `tr search`, `tr scope`, `tr case`, `tr run`.
-See [skill.md](skill.md) for agent usage guide and [docs/](docs/) for reference (`tr docs quirks`).
+See [skill.md](skill.md) for agent usage guide and [docs/](docs/) for reference (`tr docs quirks`, `tr docs auth`).
