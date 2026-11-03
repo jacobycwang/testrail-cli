@@ -31,6 +31,7 @@ def live_case(**overrides):
         "custom_preconds": "<p>User exists.</p>",
         "custom_steps": "<ol><li>Open login</li></ol>",
         "custom_expected": "<ol><li>old</li></ol>",
+        "suite_id": 5,
     }
     return {**case, **overrides}
 
@@ -42,6 +43,7 @@ def route_get(name, payload):
 
 
 def snapshot_to(path, *args):
+    route_get("get_suite/5", {"id": 5, "project_id": 15})
     result = runner.invoke(app, ["case", "snapshot", *args, "-o", str(path)])
     assert result.exit_code == 0, result.output
     return json.loads(result.stdout), json.loads(path.read_text())
@@ -62,7 +64,7 @@ def test_snapshot_ids_keeps_before_and_an_editable_copy(tmp_path):
     route_get("get_case/1042", live_case())
     report, changes = snapshot_to(tmp_path / "c.json", "C1042")
     entry = changes["updates"][0]
-    assert report["cases"] == 1
+    assert report["cases"] == 1 and changes["project_id"] == 15
     assert entry["base_version"] == 3 and entry["base_updated_on"] == 100
     assert entry["before"] == entry["fields"]
     assert entry["before"]["custom_expected"] == "<ol><li>old</li></ol>"
@@ -130,8 +132,8 @@ def test_apply_unedited_case_is_unchanged_without_a_request(tmp_path):
     route = route_get("get_case/1042", live_case())
     snapshot_to(path, "1042")
     calls = route.call_count
-    item = json.loads(apply(path).stdout)["items"][0]
-    assert item["status"] == "unchanged"
+    out = json.loads(apply(path).stdout)
+    assert out["unchanged"] == ["C1042"] and out["items"] == [] and out["total"] == 0
     assert route.call_count == calls
 
 
@@ -156,7 +158,7 @@ def test_apply_rerun_after_write_is_unchanged_not_conflict(tmp_path):
             200, json=live_case(version=4, updated_on=200, custom_expected="new")
         )
     )
-    assert json.loads(apply(path).stdout)["items"][0]["status"] == "unchanged"
+    assert json.loads(apply(path).stdout)["unchanged"] == ["C1042"]
 
 
 @respx.mock
@@ -181,7 +183,7 @@ def test_apply_commit_backs_up_writes_and_verifies(tmp_path):
     assert json.loads(post.calls[0].request.read()) == {"custom_expected": "new"}
     backup = json.loads(open(out["backup"]).read())
     assert backup[0]["before"] == {"custom_expected": "<ol><li>old</li></ol>"}
-    assert "testrail sync" in result.stderr
+    assert "testrail sync --project 15 --runs 0" in result.stderr
 
 
 @respx.mock
@@ -283,4 +285,27 @@ def test_apply_commit_reports_unchanged_cases_as_unchanged(tmp_path):
     route_get("get_case/1042", live_case())
     snapshot_to(path, "1042")
     out = json.loads(apply(path, "--commit").stdout)
-    assert out["results"] == [{"key": "C1042", "status": "unchanged"}]
+    assert out["results"] == [] and out["unchanged"] == ["C1042"]
+
+
+@respx.mock
+def test_apply_batches_count_only_cases_to_write(tmp_path):
+    path = tmp_path / "c.json"
+    updates = []
+    for case_id in range(1, 16):
+        case = live_case(id=case_id)
+        respx.get(url=f"{API}get_case/{case_id}").mock(return_value=httpx.Response(200, json=case))
+        edited = case["title"] if case_id > 3 else f"New {case_id}"
+        updates.append(
+            {
+                "case_id": case_id,
+                "base_version": 3,
+                "base_updated_on": 100,
+                "before": {"title": case["title"]},
+                "fields": {"title": edited},
+            }
+        )
+    path.write_text(json.dumps({"updates": updates, "adds": []}))
+    out = json.loads(apply(path).stdout)
+    assert out["batches"] == 1 and out["total"] == 3
+    assert len(out["unchanged"]) == 12

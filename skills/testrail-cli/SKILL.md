@@ -36,12 +36,13 @@ Use this instead of hand-written `update_case` calls whenever more than one case
 3. Optional new cases go in `adds[]`: `{"section_id": 12, "fields": {title, template_id: 1, type_id,
    priority_id, custom_preconds, custom_steps, custom_expected}}`. Keys are `A1`, `A2`, ... in file order.
 4. `testrail case apply edits.json` prints batch 1 of 10 (highest priority first) with a diff per
-   field. Show it, wait for a yes or a skip list, then `testrail case apply edits.json --commit
+   field. Only cases with edits count toward batches; the rest are listed once in `unchanged`. Show it, wait for a yes or a skip list, then `testrail case apply edits.json --commit
    [--skip C1,A2]`. Report the results, then repeat with `--batch 2`, and so on.
-5. Statuses: `ready` will be written; `unchanged` needs nothing; `conflict` means snapshot again and
+5. Statuses: `ready` will be written; `conflict` means snapshot again and
    redo that edit; `unsupported`, `invalid`, `duplicate`, `failed` are reported, never written.
 6. `--commit` writes `<file>.backup-<time>.json` with the old values first; TestRail has no undo.
-   Afterwards run `testrail sync` so the cache shows the new content. Deleting is never possible:
+   Afterwards run `testrail sync --project <project_id> --runs 0` (the id is in the change file) so
+   the cache shows the new content; `--runs 0` skips the slow run scan and keeps the last statuses. Deleting is never possible:
    list cases to delete for the user to remove in TestRail.
 
 ## Quick recipes

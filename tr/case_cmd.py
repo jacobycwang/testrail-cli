@@ -135,9 +135,9 @@ def case_snapshot(
     summary: list[dict] = []
     try:
         if section:
-            cases, summary = case_edit.snapshot_section(client, section)
+            project_id, cases, summary = case_edit.snapshot_section(client, section)
         else:
-            cases = case_edit.snapshot_ids(client, ids)
+            project_id, cases = case_edit.snapshot_ids(client, ids)
     except APIError as exc:
         fail(str(exc), 4)
     except OSError as exc:
@@ -150,11 +150,12 @@ def case_snapshot(
         out,
         {
             "snapshot_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+            "project_id": project_id,
             "updates": updates,
             "adds": [],
         },
     )
-    report: dict = {"path": str(out), "cases": len(updates)}
+    report: dict = {"path": str(out), "project_id": project_id, "cases": len(updates)}
     if summary:
         report["sections"] = summary
     title_only = [entry["case_id"] for entry in updates if "note" in entry]
@@ -173,7 +174,7 @@ def case_edit_ids(raw: str) -> list[int]:
 @case_app.command("apply")
 def case_apply(
     path: Path = typer.Argument(..., metavar="FILE", help="Change file from `case snapshot`"),
-    batch: int = typer.Option(1, "--batch", min=1, help="Which batch of 10, from 1"),
+    batch: int = typer.Option(1, "--batch", min=1, help="Which batch of 10 cases to write, from 1"),
     skip: str = typer.Option("", "--skip", help="Keys to leave out, e.g. C1042,A2"),
     commit: bool = typer.Option(False, "--commit", help="Actually write this batch"),
     sleep: float = typer.Option(EDIT_SLEEP, "--sleep", help="Seconds to wait between requests"),
@@ -190,13 +191,15 @@ def case_apply(
     client = _client(cfg, sleep)
     try:
         items = case_edit.build_items(changes, client)
-        chosen = case_edit.pick_batch(items, batch)
-        total = len(items)
+        pending = [item for item in items if item.status != "unchanged"]
+        chosen = case_edit.pick_batch(pending, batch)
+        total = len(pending)
         report: dict = {
             "dry_run": not commit,
             "batch": batch,
             "batches": max(1, -(-total // case_edit.BATCH_SIZE)),
             "total": total,
+            "unchanged": [item.key for item in items if item.status == "unchanged"],
         }
         if not commit:
             report["items"] = [case_edit.describe(item) for item in chosen]
@@ -216,6 +219,8 @@ def case_apply(
         report["backup"] = str(backup)
     emit(report)
     if any(result["status"] == "ok" for result in results):
-        hint("run `testrail sync` to refresh the local cache")
+        project = changes.get("project_id")
+        target = f"--project {project} --runs 0" if project else "--runs 0"
+        hint(f"run `testrail sync {target}` to refresh the local cache")
     if any(result["status"] == "failed" for result in results):
         raise SystemExit(1)

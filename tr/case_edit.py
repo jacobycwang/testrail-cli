@@ -80,7 +80,7 @@ def section_cases(client: APIClient, project_id: int, suite_id: int, section_id:
     return _items(client.paginate(f"get_cases/{project_id}", params), "cases")
 
 
-def snapshot_section(client: APIClient, section_id: int) -> tuple[list[dict], list[dict]]:
+def snapshot_section(client: APIClient, section_id: int) -> tuple[int, list[dict], list[dict]]:
     project_id, suite_id, sections = section_tree(client, section_id)
     cases: list[dict] = []
     summary: list[dict] = []
@@ -95,11 +95,17 @@ def snapshot_section(client: APIClient, section_id: int) -> tuple[list[dict], li
                 "cases": len(found),
             }
         )
-    return cases, summary
+    return project_id, cases, summary
 
 
-def snapshot_ids(client: APIClient, case_ids: list[int]) -> list[dict]:
-    return [client.get(f"get_case/{case_id}") for case_id in case_ids]
+def snapshot_ids(client: APIClient, case_ids: list[int]) -> tuple[int | None, list[dict]]:
+    cases = [client.get(f"get_case/{case_id}") for case_id in case_ids]
+    projects = {
+        client.get(f"get_suite/{suite_id}")["project_id"]
+        for suite_id in {case.get("suite_id") for case in cases}
+        if suite_id
+    }
+    return (projects.pop() if len(projects) == 1 else None), cases
 
 
 # --- apply --------------------------------------------------------------------------
