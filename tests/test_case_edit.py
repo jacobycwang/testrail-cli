@@ -275,3 +275,12 @@ def test_apply_add_missing_field_is_invalid(tmp_path):
     del change["fields"]["custom_steps"]
     path.write_text(json.dumps({"updates": [], "adds": [change]}))
     assert json.loads(apply(path).stdout)["items"][0]["status"] == "invalid"
+
+
+@respx.mock
+def test_apply_commit_reports_unchanged_cases_as_unchanged(tmp_path):
+    path = tmp_path / "c.json"
+    route_get("get_case/1042", live_case())
+    snapshot_to(path, "1042")
+    out = json.loads(apply(path, "--commit").stdout)
+    assert out["results"] == [{"key": "C1042", "status": "unchanged"}]
