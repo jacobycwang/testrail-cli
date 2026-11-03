@@ -52,6 +52,8 @@ Upgrade later with `uv tool upgrade testrail-cli`.
 | Build a regression scope from a PR diff | `git diff main... > pr.diff && testrail scope --diff pr.diff` |
 | Scope from ticket keys | `testrail scope --refs PAY-883,PAY-900` |
 | Read one case (cache first, `--fresh` hits the API) | `testrail case get 1042` |
+| Snapshot cases to edit (ids, or a section and its subsections) | `testrail case snapshot --section 12 -o edits.json` |
+| Check edits, then write one batch of 10 | `testrail case apply edits.json` then `testrail case apply edits.json --commit` |
 | Open a run (dry run) | `testrail run add --case-ids 1042,1043 --name "Smoke"` |
 | Open a run for real | `testrail run add --case-ids 1042,1043 --name "Smoke" --commit` |
 | Any raw API call | `testrail api get_cases/10 --query suite_id=2,limit=250 --paginate` |
@@ -88,7 +90,7 @@ Other overrides: `TESTRAIL_PROJECT_ID` (narrows `sync`/`search`/`scope` to one p
 
 ## Safety rules
 
-- Writes (`add_*`, `update_*`, `close_*`, `testrail run add`) are dry runs unless `--commit` is present.
+- Writes (`add_*`, `update_*`, `close_*`, `testrail run add`, `testrail case apply`) are dry runs unless `--commit` is present.
 - `delete_*` is refused, always.
 - The API key never appears in argv, stdout, stderr or any file.
 - `testrail search`, `testrail scope`, `testrail docs` and `testrail case get` (without `--fresh`) never touch the network.

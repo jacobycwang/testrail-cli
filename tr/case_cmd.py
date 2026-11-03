@@ -1,7 +1,12 @@
+import json
+import time
+from pathlib import Path
+
 import typer
 
+from tr import case_edit
 from tr.auth import get_api_key
-from tr.cache import case_path, project_dir, read_case_md
+from tr.cache import case_path, dump_json, project_dir, read_case_md
 from tr.config import Config, load_config
 from tr.http import APIClient, APIError, build_url
 from tr.output import emit, emit_capped, fail, hint
@@ -18,12 +23,12 @@ def _project(cfg: Config, override: int | None) -> int:
     return project_id
 
 
-def _client(cfg: Config) -> APIClient:
+def _client(cfg: Config, sleep: float = 0.0) -> APIClient:
     if not cfg.host:
         fail("no TestRail host configured; run `testrail auth login` or set TESTRAIL_HOST", 3)
     if not cfg.email:
         fail("no TestRail email configured; run `testrail auth login` or set TESTRAIL_EMAIL", 3)
-    return APIClient(cfg.host, cfg.email, get_api_key(cfg))
+    return APIClient(cfg.host, cfg.email, get_api_key(cfg), sleep_s=sleep)
 
 
 @case_app.command("get")
@@ -100,3 +105,117 @@ def run_add(
     if isinstance(run, dict) and run.get("id"):
         hint(f"created run {run['id']}: {run_view_url(cfg.host or '', run['id'])}")
     emit_capped({"dry_run": False, "run": run}, cfg)
+
+
+EDIT_SLEEP = 0.35
+
+
+@case_app.command("snapshot")
+def case_snapshot(
+    case_ids: str | None = typer.Argument(None, metavar="[IDS]", help="Case ids, e.g. C1,C2"),
+    section: int | None = typer.Option(
+        None, "--section", help="Section id; takes every case in it and its subsections"
+    ),
+    out: Path = typer.Option(..., "--out", "-o", help="Change file to write"),
+    force: bool = typer.Option(False, "--force", help="Overwrite an existing change file"),
+    sleep: float = typer.Option(EDIT_SLEEP, "--sleep", help="Seconds to wait between requests"),
+) -> None:
+    """Write live cases to a change file; edit its `fields`, then run `case apply`."""
+    if bool(case_ids) == bool(section):
+        fail("pass case ids or --section, not both and not neither", 2)
+    if out.exists() and not force:
+        fail(f"{out} exists; it may hold unsent edits. Pick another path or pass --force", 2)
+    try:
+        ids = case_edit_ids(case_ids) if case_ids else []
+    except ValueError as exc:
+        fail(str(exc), 2)
+
+    cfg = load_config()
+    client = _client(cfg, sleep)
+    summary: list[dict] = []
+    try:
+        if section:
+            cases, summary = case_edit.snapshot_section(client, section)
+        else:
+            cases = case_edit.snapshot_ids(client, ids)
+    except APIError as exc:
+        fail(str(exc), 4)
+    except OSError as exc:
+        fail(f"network error: {exc}", 4)
+    finally:
+        client.close()
+
+    updates = [case_edit.snapshot_entry(case) for case in cases]
+    dump_json(
+        out,
+        {
+            "snapshot_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+            "updates": updates,
+            "adds": [],
+        },
+    )
+    report: dict = {"path": str(out), "cases": len(updates)}
+    if summary:
+        report["sections"] = summary
+    title_only = [entry["case_id"] for entry in updates if "note" in entry]
+    if title_only:
+        report["title_only"] = title_only
+    emit(report)
+
+
+def case_edit_ids(raw: str) -> list[int]:
+    ids = parse_case_ids(raw)
+    if not ids:
+        raise ValueError("no case ids given")
+    return ids
+
+
+@case_app.command("apply")
+def case_apply(
+    path: Path = typer.Argument(..., metavar="FILE", help="Change file from `case snapshot`"),
+    batch: int = typer.Option(1, "--batch", min=1, help="Which batch of 10, from 1"),
+    skip: str = typer.Option("", "--skip", help="Keys to leave out, e.g. C1042,A2"),
+    commit: bool = typer.Option(False, "--commit", help="Actually write this batch"),
+    sleep: float = typer.Option(EDIT_SLEEP, "--sleep", help="Seconds to wait between requests"),
+) -> None:
+    """Check a change file against TestRail and write one batch (dry-run unless --commit)."""
+    if not path.is_file():
+        fail(f"change file not found: {path}", 2)
+    try:
+        changes = json.loads(path.read_text())
+    except json.JSONDecodeError as exc:
+        fail(f"{path} is not valid JSON: {exc}", 2)
+
+    cfg = load_config()
+    client = _client(cfg, sleep)
+    try:
+        items = case_edit.build_items(changes, client)
+        chosen = case_edit.pick_batch(items, batch)
+        total = len(items)
+        report: dict = {
+            "dry_run": not commit,
+            "batch": batch,
+            "batches": max(1, -(-total // case_edit.BATCH_SIZE)),
+            "total": total,
+        }
+        if not commit:
+            report["items"] = [case_edit.describe(item) for item in chosen]
+            emit_capped(report, cfg)
+            return
+        keys = {value.strip() for value in skip.split(",") if value.strip()}
+        results, backup = case_edit.apply_items(chosen, client, path, keys)
+    except APIError as exc:
+        fail(str(exc), 4)
+    except OSError as exc:
+        fail(f"network error: {exc}", 4)
+    finally:
+        client.close()
+
+    report["results"] = results
+    if backup:
+        report["backup"] = str(backup)
+    emit(report)
+    if any(result["status"] == "ok" for result in results):
+        hint("run `testrail sync` to refresh the local cache")
+    if any(result["status"] == "failed" for result in results):
+        raise SystemExit(1)

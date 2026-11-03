@@ -1,6 +1,6 @@
 ---
 name: testrail-cli
-description: Use the `testrail` CLI to read and search TestRail cases, build a regression scope from a diff or ticket keys, and open test runs. Use whenever a task mentions TestRail, test cases, regression scope, or test runs.
+description: Use the `testrail` CLI to read and search TestRail cases, build a regression scope from a diff or ticket keys, open test runs, and edit cases in bulk. Use whenever a task mentions TestRail, test cases, regression scope, or test runs.
 ---
 
 ## Setup check (run first)
@@ -23,6 +23,26 @@ testrail auth status || uv tool install git+ssh://git@github.com/jacobycwang/tes
 2. Find candidates: `testrail search "<word from the change>"` and/or `testrail scope --diff pr.diff --refs KEY-1`.
 3. Read the ones that matter: `testrail case get ID`.
 4. Propose a run: `testrail run add --case-ids ... --name "..."`, show the payload, wait for a yes, then rerun with `--commit`.
+
+## Editing cases in bulk
+Use this instead of hand-written `update_case` calls whenever more than one case changes.
+1. `testrail case snapshot C1,C2 -o edits.json` or `testrail case snapshot --section ID -o edits.json`
+   (the section and every subsection). Report the per-section counts in `sections` before editing;
+   an unexpected number usually means the wrong section.
+2. Edit only `updates[].fields` in the file. Keep `before` and `base_*` untouched: `apply` sends
+   only fields that differ from `before`, and blocks a case changed in TestRail since the snapshot.
+   Steps and expected are HTML (`<ol><li>`); change the text you need and keep the rest byte-for-byte.
+   Template 1 cases expose title, preconds, steps, expected; other templates expose the title only.
+3. Optional new cases go in `adds[]`: `{"section_id": 12, "fields": {title, template_id: 1, type_id,
+   priority_id, custom_preconds, custom_steps, custom_expected}}`. Keys are `A1`, `A2`, ... in file order.
+4. `testrail case apply edits.json` prints batch 1 of 10 (highest priority first) with a diff per
+   field. Show it, wait for a yes or a skip list, then `testrail case apply edits.json --commit
+   [--skip C1,A2]`. Report the results, then repeat with `--batch 2`, and so on.
+5. Statuses: `ready` will be written; `unchanged` needs nothing; `conflict` means snapshot again and
+   redo that edit; `unsupported`, `invalid`, `duplicate`, `failed` are reported, never written.
+6. `--commit` writes `<file>.backup-<time>.json` with the old values first; TestRail has no undo.
+   Afterwards run `testrail sync` so the cache shows the new content. Deleting is never possible:
+   list cases to delete for the user to remove in TestRail.
 
 ## Quick recipes
 - auth status: `testrail auth status`
@@ -56,6 +76,8 @@ testrail sync [--project ID] [--since ISO] [--runs N] [--sleep SECONDS] [--full]
 testrail search QUERY [--type T] [--refs KEY] [--failed] [--limit N] [--project ID] [--json]
 testrail scope [--diff PATH] [--refs KEYS] [--failed] [--section] [--limit N] [--project ID]
 testrail case get ID [--fresh] [--project ID]
+testrail case snapshot [IDS] [--section ID] -o FILE [--force] [--sleep S]
+testrail case apply FILE [--batch N] [--skip KEYS] [--commit] [--sleep S]
 testrail run add --case-ids 1,2 --name "..." [--project ID] [--suite ID] [--description D]
             [--milestone ID] [--refs KEYS] [--commit]
 
