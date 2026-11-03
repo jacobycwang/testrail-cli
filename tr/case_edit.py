@@ -288,10 +288,11 @@ def apply_items(
     lookup = SectionLookup(client)
 
     results = [{"key": i.key, "status": "skipped"} for i in items if i.key in skip]
+    results += [{"key": i.key, "status": "unchanged"} for i in chosen if i.status == "unchanged"]
     results += [
         {"key": i.key, "status": "blocked", "note": f"{i.status}: {i.note}".rstrip(": ")}
         for i in chosen
-        if i.status != "ready"
+        if i.status not in ("ready", "unchanged")
     ]
     for item in ready:
         try:
