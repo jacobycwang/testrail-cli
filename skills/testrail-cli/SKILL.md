@@ -35,11 +35,17 @@ Use this instead of hand-written `update_case` calls whenever more than one case
    Template 1 cases expose title, preconds, steps, expected; other templates expose the title only.
 3. Optional new cases go in `adds[]`: `{"section_id": 12, "fields": {title, template_id: 1, type_id,
    priority_id, custom_preconds, custom_steps, custom_expected}}`. Keys are `A1`, `A2`, ... in file order.
-4. `testrail case apply edits.json` prints batch 1 of 10 (highest priority first) with a diff per
-   field. Only cases with edits count toward batches; the rest are listed once in `unchanged`. Show it, wait for a yes or a skip list, then `testrail case apply edits.json --commit
-   [--skip C1,A2]`. Report the results, then repeat with `--batch 2`, and so on.
-5. Statuses: `ready` will be written; `conflict` means snapshot again and
-   redo that edit; `unsupported`, `invalid`, `duplicate`, `failed` are reported, never written.
+4. `testrail case apply edits.json` prints the next batch of up to 10 `ready` cases (highest
+   priority first) in `items`, with a diff per field, and `remaining` counts every `ready` case not
+   yet written. Cases without edits are listed in `unchanged`; cases that cannot be written are in
+   `blocked`. Show it, wait for a yes or a skip list, then `testrail case apply edits.json --commit
+   [--skip C1,A2]`. Report the results, then run the same dry run again: written cases now read
+   back as `unchanged`, so it shows the following batch. Keep passing the same `--skip` keys.
+   Stop when `remaining` is 0.
+5. Statuses: `ready` will be written; in `blocked`, `conflict` means snapshot again and redo
+   that edit, and `unsupported`, `invalid`, `duplicate` are reported, never written. A case added
+   by an earlier commit shows up as `duplicate` on later runs; that is expected. `failed` appears
+   only in commit results.
 6. `--commit` writes `<file>.backup-<time>.json` with the old values first; TestRail has no undo.
    Afterwards run `testrail sync --project <project_id> --runs 0` (the id is in the change file) so
    the cache shows the new content; `--runs 0` skips the slow run scan and keeps the last statuses. Deleting is never possible:
@@ -78,7 +84,7 @@ testrail search QUERY [--type T] [--refs KEY] [--failed] [--limit N] [--project 
 testrail scope [--diff PATH] [--refs KEYS] [--failed] [--section] [--limit N] [--project ID]
 testrail case get ID [--fresh] [--project ID]
 testrail case snapshot [IDS] [--section ID] -o FILE [--force] [--sleep S]
-testrail case apply FILE [--batch N] [--skip KEYS] [--commit] [--sleep S]
+testrail case apply FILE [--skip KEYS] [--commit] [--sleep S]
 testrail run add --case-ids 1,2 --name "..." [--project ID] [--suite ID] [--description D]
             [--milestone ID] [--refs KEYS] [--commit]
 

@@ -214,9 +214,10 @@ def build_items(changes: dict, client: APIClient) -> list[Item]:
     return sorted(items, key=lambda item: item.priority_id, reverse=True)
 
 
-def pick_batch(items: list[Item], batch: int, size: int = BATCH_SIZE) -> list[Item]:
-    start = (batch - 1) * size
-    return items[start : start + size]
+def next_batch(items: list[Item], skip: set[str], size: int = BATCH_SIZE) -> list[Item]:
+    """The next cases to write: ready and not skipped. Written cases read back as unchanged,
+    so running apply again always picks up where the last commit stopped."""
+    return [item for item in items if item.status == "ready" and item.key not in skip][:size]
 
 
 def field_diff(before: Any, after: Any) -> list[str]:
@@ -285,21 +286,10 @@ def write_add(item: Item, client: APIClient, lookup: SectionLookup) -> str:
     return f"created C{created.get('id')}"
 
 
-def apply_items(
-    items: list[Item], client: APIClient, path: Path, skip: set[str]
-) -> tuple[list[dict], Path | None]:
-    chosen = [item for item in items if item.key not in skip]
-    ready = [item for item in chosen if item.status == "ready"]
+def apply_items(ready: list[Item], client: APIClient, path: Path) -> tuple[list[dict], Path | None]:
     backup = write_backup(path, ready)
     lookup = SectionLookup(client)
-
-    results = [{"key": i.key, "status": "skipped"} for i in items if i.key in skip]
-    results += [{"key": i.key, "status": "unchanged"} for i in chosen if i.status == "unchanged"]
-    results += [
-        {"key": i.key, "status": "blocked", "note": f"{i.status}: {i.note}".rstrip(": ")}
-        for i in chosen
-        if i.status not in ("ready", "unchanged")
-    ]
+    results = []
     for item in ready:
         try:
             if item.kind == "update":
