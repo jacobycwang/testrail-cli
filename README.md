@@ -53,7 +53,7 @@ Upgrade later with `uv tool upgrade testrail-cli`.
 | Scope from ticket keys | `testrail scope --refs PAY-883,PAY-900` |
 | Read one case (cache first, `--fresh` hits the API) | `testrail case get 1042` |
 | Snapshot cases to edit (ids, or a section and its subsections) | `testrail case snapshot --section 12 -o edits.json` |
-| Check edits, then write one batch of 10 | `testrail case apply edits.json` then `testrail case apply edits.json --commit` |
+| Check edits, then write the next batch of 10 (repeat until `remaining` is 0) | `testrail case apply edits.json` then `testrail case apply edits.json --commit` |
 | Open a run (dry run) | `testrail run add --case-ids 1042,1043 --name "Smoke"` |
 | Open a run for real | `testrail run add --case-ids 1042,1043 --name "Smoke" --commit` |
 | Any raw API call | `testrail api get_cases/10 --query suite_id=2,limit=250 --paginate` |

@@ -174,12 +174,17 @@ def case_edit_ids(raw: str) -> list[int]:
 @case_app.command("apply")
 def case_apply(
     path: Path = typer.Argument(..., metavar="FILE", help="Change file from `case snapshot`"),
-    batch: int = typer.Option(1, "--batch", min=1, help="Which batch of 10 cases to write, from 1"),
-    skip: str = typer.Option("", "--skip", help="Keys to leave out, e.g. C1042,A2"),
+    skip: str = typer.Option(
+        "", "--skip", help="Keys to leave out, e.g. C1042,A2; repeat them on every later run"
+    ),
     commit: bool = typer.Option(False, "--commit", help="Actually write this batch"),
     sleep: float = typer.Option(EDIT_SLEEP, "--sleep", help="Seconds to wait between requests"),
 ) -> None:
-    """Check a change file against TestRail and write one batch (dry-run unless --commit)."""
+    """Check a change file against TestRail and write the next batch of up to 10 ready cases.
+
+    Dry-run unless --commit. Run it again after each commit: written cases read back as
+    unchanged, so the next run shows the following batch, until `remaining` is 0.
+    """
     if not path.is_file():
         fail(f"change file not found: {path}", 2)
     try:
@@ -191,22 +196,26 @@ def case_apply(
     client = _client(cfg, sleep)
     try:
         items = case_edit.build_items(changes, client)
-        pending = [item for item in items if item.status != "unchanged"]
-        chosen = case_edit.pick_batch(pending, batch)
-        total = len(pending)
+        keys = {value.strip() for value in skip.split(",") if value.strip()}
+        chosen = case_edit.next_batch(items, keys)
+        remaining = sum(item.status == "ready" and item.key not in keys for item in items)
         report: dict = {
             "dry_run": not commit,
-            "batch": batch,
-            "batches": max(1, -(-total // case_edit.BATCH_SIZE)),
-            "total": total,
+            "remaining": remaining,
+            "batches": -(-remaining // case_edit.BATCH_SIZE),
             "unchanged": [item.key for item in items if item.status == "unchanged"],
+            "skipped": [item.key for item in items if item.key in keys],
+            "blocked": [
+                case_edit.describe(item)
+                for item in items
+                if item.status not in ("ready", "unchanged") and item.key not in keys
+            ],
         }
         if not commit:
             report["items"] = [case_edit.describe(item) for item in chosen]
             emit_capped(report, cfg)
             return
-        keys = {value.strip() for value in skip.split(",") if value.strip()}
-        results, backup = case_edit.apply_items(chosen, client, path, keys)
+        results, backup = case_edit.apply_items(chosen, client, path)
     except APIError as exc:
         fail(str(exc), 4)
     except OSError as exc:

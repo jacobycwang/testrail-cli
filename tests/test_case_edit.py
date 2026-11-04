@@ -133,7 +133,7 @@ def test_apply_unedited_case_is_unchanged_without_a_request(tmp_path):
     snapshot_to(path, "1042")
     calls = route.call_count
     out = json.loads(apply(path).stdout)
-    assert out["unchanged"] == ["C1042"] and out["items"] == [] and out["total"] == 0
+    assert out["unchanged"] == ["C1042"] and out["items"] == [] and out["remaining"] == 0
     assert route.call_count == calls
 
 
@@ -144,7 +144,9 @@ def test_apply_blocks_a_case_changed_since_the_snapshot(tmp_path):
     snapshot_to(path, "1042")
     edit(path, custom_expected="new")
     route.mock(return_value=httpx.Response(200, json=live_case(version=4, updated_on=200)))
-    assert json.loads(apply(path).stdout)["items"][0]["status"] == "conflict"
+    out = json.loads(apply(path).stdout)
+    assert out["items"] == [] and out["remaining"] == 0
+    assert out["blocked"][0]["status"] == "conflict"
 
 
 @respx.mock
@@ -194,7 +196,7 @@ def test_apply_skip_leaves_the_case_alone(tmp_path):
     edit(path, custom_expected="new")
     post = respx.post(url__startswith=API).mock(return_value=httpx.Response(200, json={}))
     out = json.loads(apply(path, "--commit", "--skip", "C1042").stdout)
-    assert out["results"] == [{"key": "C1042", "status": "skipped"}]
+    assert out["skipped"] == ["C1042"] and out["results"] == []
     assert post.call_count == 0
     assert "backup" not in out
 
@@ -220,10 +222,17 @@ def test_apply_batches_ten_with_critical_first(tmp_path):
         )
     path.write_text(json.dumps({"updates": updates, "adds": []}))
     first = json.loads(apply(path).stdout)
-    assert first["batches"] == 2 and len(first["items"]) == 10
+    assert first["batches"] == 2 and first["remaining"] == 12 and len(first["items"]) == 10
     assert first["items"][0]["key"] == "C12"
-    second = json.loads(apply(path, "--batch", "2").stdout)
-    assert len(second["items"]) == 2
+    for item in first["items"]:
+        case_id = int(item["key"][1:])
+        written = live_case(id=case_id, title=f"New {case_id}", version=4, updated_on=200)
+        respx.get(url=f"{API}get_case/{case_id}").mock(
+            return_value=httpx.Response(200, json=written)
+        )
+    second = json.loads(apply(path).stdout)
+    assert second["remaining"] == 2 and second["batches"] == 1
+    assert sorted(item["key"] for item in second["items"]) == ["C10", "C11"]
 
 
 def add_change(**overrides):
@@ -252,7 +261,7 @@ def test_apply_add_blocks_a_duplicate_title(tmp_path):
     path = tmp_path / "c.json"
     path.write_text(json.dumps({"updates": [], "adds": [add_change()]}))
     mock_section([[{"id": 5, "title": "New case"}]])
-    item = json.loads(apply(path).stdout)["items"][0]
+    item = json.loads(apply(path).stdout)["blocked"][0]
     assert item["key"] == "A1" and item["status"] == "duplicate"
 
 
@@ -276,7 +285,7 @@ def test_apply_add_missing_field_is_invalid(tmp_path):
     change = add_change()
     del change["fields"]["custom_steps"]
     path.write_text(json.dumps({"updates": [], "adds": [change]}))
-    assert json.loads(apply(path).stdout)["items"][0]["status"] == "invalid"
+    assert json.loads(apply(path).stdout)["blocked"][0]["status"] == "invalid"
 
 
 @respx.mock
@@ -307,5 +316,28 @@ def test_apply_batches_count_only_cases_to_write(tmp_path):
         )
     path.write_text(json.dumps({"updates": updates, "adds": []}))
     out = json.loads(apply(path).stdout)
-    assert out["batches"] == 1 and out["total"] == 3
+    assert out["batches"] == 1 and out["remaining"] == 3
     assert len(out["unchanged"]) == 12
+
+
+@respx.mock
+def test_apply_skipped_case_does_not_take_a_batch_slot(tmp_path):
+    path = tmp_path / "c.json"
+    updates = []
+    for case_id in range(1, 12):
+        respx.get(url=f"{API}get_case/{case_id}").mock(
+            return_value=httpx.Response(200, json=live_case(id=case_id))
+        )
+        updates.append(
+            {
+                "case_id": case_id,
+                "base_version": 3,
+                "base_updated_on": 100,
+                "before": {"title": "Login with expired token"},
+                "fields": {"title": f"New {case_id}"},
+            }
+        )
+    path.write_text(json.dumps({"updates": updates, "adds": []}))
+    out = json.loads(apply(path, "--skip", "C1").stdout)
+    assert out["skipped"] == ["C1"] and out["remaining"] == 10
+    assert "C1" not in [item["key"] for item in out["items"]] and len(out["items"]) == 10
