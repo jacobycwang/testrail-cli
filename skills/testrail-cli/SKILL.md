@@ -44,8 +44,9 @@ Use this instead of hand-written `update_case` calls whenever more than one case
    Stop when `remaining` is 0.
 5. Statuses: `ready` will be written; in `blocked`, `conflict` means snapshot again and redo
    that edit, and `unsupported`, `invalid`, `duplicate` are reported, never written. A case added
-   by an earlier commit shows up as `duplicate` on later runs; that is expected. `failed` appears
-   only in commit results.
+   by an earlier commit shows up as `duplicate` on later runs; that is expected. Two `adds` with
+   the same title in one section: only the first is written, the rest are `duplicate`. `failed`
+   in `blocked` means a lookup call failed; run apply again.
 6. `--commit` writes `<file>.backup-<time>.json` with the old values first; TestRail has no undo.
    Afterwards run `testrail sync --project <project_id> --runs 0` (the id is in the change file) so
    the cache shows the new content; `--runs 0` skips the slow run scan and keeps the last statuses. Deleting is never possible:

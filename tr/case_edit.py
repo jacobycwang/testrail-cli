@@ -207,11 +207,24 @@ def check_add(change: dict, index: int, client: APIClient, lookup: SectionLookup
 def build_items(changes: dict, client: APIClient) -> list[Item]:
     lookup = SectionLookup(client)
     items = [check_update(change, client) for change in changes.get("updates") or []]
-    items += [
+    adds = [
         check_add(change, index, client, lookup)
         for index, change in enumerate(changes.get("adds") or [], start=1)
     ]
-    return sorted(items, key=lambda item: item.priority_id, reverse=True)
+    block_repeated_adds(adds)
+    return sorted(items + adds, key=lambda item: item.priority_id, reverse=True)
+
+
+def block_repeated_adds(adds: list[Item]) -> None:
+    first_key: dict[tuple, str] = {}
+    for item in adds:
+        if item.status != "ready":
+            continue
+        target = (item.change["section_id"], item.body["title"])
+        if target in first_key:
+            item.status, item.note = "duplicate", f"same title as {first_key[target]} in this file"
+        else:
+            first_key[target] = item.key
 
 
 def next_batch(items: list[Item], skip: set[str], size: int = BATCH_SIZE) -> list[Item]:
