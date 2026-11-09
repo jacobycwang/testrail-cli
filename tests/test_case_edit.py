@@ -341,3 +341,53 @@ def test_apply_skipped_case_does_not_take_a_batch_slot(tmp_path):
     out = json.loads(apply(path, "--skip", "C1").stdout)
     assert out["skipped"] == ["C1"] and out["remaining"] == 10
     assert "C1" not in [item["key"] for item in out["items"]] and len(out["items"]) == 10
+
+
+@respx.mock
+def test_apply_add_blocks_a_title_repeated_within_the_file(tmp_path):
+    path = tmp_path / "c.json"
+    adds = [
+        add_change(title="Refund after partial capture", priority_id=3),
+        add_change(title="Refund after partial capture", priority_id=2),
+        add_change(title="Void before settlement"),
+    ]
+    path.write_text(json.dumps({"updates": [], "adds": adds}))
+    mock_section([[{"id": 77, "title": "Older case"}]] * 3)
+    out = json.loads(apply(path).stdout)
+    assert [item["key"] for item in out["items"]] == ["A1", "A3"]
+    assert [(item["key"], item["status"]) for item in out["blocked"]] == [("A2", "duplicate")]
+    assert "A1" in out["blocked"][0]["note"]
+
+
+@respx.mock
+def test_apply_network_error_mid_batch_keeps_earlier_results(tmp_path):
+    path = tmp_path / "c.json"
+    updates = []
+    for case_id in (2207, 3318):
+        case = live_case(id=case_id)
+        respx.get(url=f"{API}get_case/{case_id}").mock(
+            side_effect=[
+                httpx.Response(200, json=case),
+                httpx.Response(200, json=live_case(id=case_id, title=f"Renamed {case_id}")),
+            ]
+        )
+        updates.append(
+            {
+                "case_id": case_id,
+                "base_version": 3,
+                "base_updated_on": 100,
+                "before": {"title": case["title"]},
+                "fields": {"title": f"Renamed {case_id}"},
+            }
+        )
+    path.write_text(json.dumps({"updates": updates, "adds": []}))
+    respx.post(url=f"{API}update_case/2207").mock(return_value=httpx.Response(200, json={}))
+    respx.post(url=f"{API}update_case/3318").mock(side_effect=httpx.ConnectError("reset"))
+    result = apply(path, "--commit")
+    assert result.exit_code == 1
+    out = json.loads(result.stdout)
+    assert [(r["key"], r["status"]) for r in out["results"]] == [
+        ("C2207", "ok"),
+        ("C3318", "failed"),
+    ]
+    assert out["backup"]
