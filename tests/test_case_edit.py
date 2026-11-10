@@ -544,3 +544,49 @@ def test_apply_steps_template_cannot_take_the_stale_text_fields(tmp_path):
     edit(path, custom_expected="<p>new</p>")
     blocked = json.loads(apply(path).stdout)["blocked"][0]
     assert blocked["status"] == "unsupported" and "custom_expected" in blocked["note"]
+
+
+REDIRECT_SET = {"shared_step_id": 9, "content": "<p>Go to the booking page</p>"}
+
+
+@respx.mock
+def test_apply_blocks_a_case_whose_shared_set_spans_several_steps(tmp_path):
+    path = tmp_path / "c.json"
+    live = [
+        step("<p>Add the redirect setting</p>"),
+        dict(REDIRECT_SET, expected="<p>Redirected to the branch</p>"),
+        dict(REDIRECT_SET, expected="<p>Query string is kept</p>"),
+    ]
+    _, steps = snapshot_steps_case(path, steps_case(custom_steps_separated=live))
+    steps[0]["content"] = "<p>Add the redirect setting in Backhouse</p>"
+    edit(path, custom_steps_separated=steps)
+    out = json.loads(apply(path).stdout)
+    assert out["items"] == []
+    blocked = out["blocked"][0]
+    assert blocked["status"] == "unsupported"
+    assert "[9]" in blocked["note"] and "several steps" in blocked["note"]
+
+
+@respx.mock
+def test_apply_allows_a_one_step_shared_set_used_twice_apart(tmp_path):
+    path = tmp_path / "c.json"
+    check_page = {"shared_step_id": 12, "content": "Check page", "expected": "Info shown"}
+    live = [dict(check_page), step("Hide the info section"), dict(check_page)]
+    _, steps = snapshot_steps_case(path, steps_case(custom_steps_separated=live))
+    steps[1]["expected"] = "Setting saved"
+    edit(path, custom_steps_separated=steps)
+    item = json.loads(apply(path).stdout)["items"][0]
+    assert item["status"] == "ready"
+    assert item["diff"]["custom_steps_separated"] == ["step 2 expected: +Setting saved"]
+
+
+@respx.mock
+@pytest.mark.parametrize("typo", ["expeted", "Content"])
+def test_apply_blocks_a_step_key_testrail_does_not_have(tmp_path, typo):
+    path = tmp_path / "c.json"
+    _, steps = snapshot_steps_case(path)
+    steps.append({"content": "<p>Check HostApp</p>", typo: "<p>Matches</p>"})
+    edit(path, custom_steps_separated=steps)
+    out = json.loads(apply(path).stdout)
+    assert out["items"] == []
+    assert out["blocked"][0]["status"] == "unsupported" and typo in out["blocked"][0]["note"]
