@@ -8,6 +8,7 @@ that differ from `before`, in batches, after checking nobody changed the case me
 import difflib
 import re
 import time
+from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -17,17 +18,60 @@ from tr.http import APIClient, APIError
 
 BATCH_SIZE = 10
 TEXT_TEMPLATE_ID = 1
+STEPS_TEMPLATE_ID = 2
 TEXT_FIELDS = ("custom_preconds", "custom_steps", "custom_expected")
+STEPS_FIELD = "custom_steps_separated"
+STEPS_FIELDS = ("custom_preconds", STEPS_FIELD)
+STEP_KEYS = ("content", "expected", "additional_info", "refs", "shared_step_id")
 ANY_TEMPLATE_FIELDS = ("title",)
 ADD_REQUIRED = frozenset({"title", "template_id", "type_id", "priority_id", *TEXT_FIELDS})
 DIFF_SPLIT = re.compile(r"\n|(?=<li>|</?[ou]l>)")
 
 
 def editable_fields(template_id: Any) -> tuple[str, ...]:
-    """Steps and expected live in different fields per template; only template 1 is verified."""
+    """Steps and expected live in different fields per template. Only TestRail's built-in
+    Text (1) and Steps (2) templates are verified; custom ones stay title-only. Template 2
+    leaves out custom_steps/custom_expected: those hold stale text from a Text -> Steps switch."""
     if template_id == TEXT_TEMPLATE_ID:
         return ANY_TEMPLATE_FIELDS + TEXT_FIELDS
+    if template_id == STEPS_TEMPLATE_ID:
+        return ANY_TEMPLATE_FIELDS + STEPS_FIELDS
     return ANY_TEMPLATE_FIELDS
+
+
+def step_key(step: Any) -> tuple:
+    """What counts as a step's content: markdown_editor_id is ignored, null equals ""."""
+    if not isinstance(step, dict):
+        return (repr(step),)
+    return tuple("" if step.get(name) is None else step.get(name) for name in STEP_KEYS)
+
+
+def steps_key(steps: Any) -> tuple:
+    return tuple(step_key(step) for step in steps or [])
+
+
+def same_value(name: str, a: Any, b: Any) -> bool:
+    if name == STEPS_FIELD:
+        return steps_key(a) == steps_key(b)
+    return a == b
+
+
+def steps_problem(steps: Any, live_steps: Any) -> str:
+    """Why a new steps array cannot be sent, or "" if it can. Shared steps may move but must
+    come back exactly as TestRail returned them; this tool never edits a shared step."""
+    if not isinstance(steps, list) or not all(isinstance(step, dict) for step in steps):
+        return f"{STEPS_FIELD} must be a list of step objects"
+
+    def shared(items: Any) -> Counter:
+        return Counter(
+            step_key(s) for s in items or [] if isinstance(s, dict) and s.get("shared_step_id")
+        )
+
+    want, have = shared(live_steps), shared(steps)
+    if want == have:
+        return ""
+    changed = sorted({key[-1] for key in (want - have) + (have - want)})
+    return f"shared steps {changed} were edited, removed or added; leave shared steps as they are"
 
 
 def _items(payload: Any, key: str) -> list[dict]:
@@ -50,7 +94,7 @@ def snapshot_entry(case: dict) -> dict:
         "before": before,
         "fields": dict(before),
     }
-    if case.get("template_id") != TEXT_TEMPLATE_ID:
+    if case.get("template_id") not in (TEXT_TEMPLATE_ID, STEPS_TEMPLATE_ID):
         entry["note"] = f"template {case.get('template_id')}: only the title is editable"
     return entry
 
@@ -128,7 +172,7 @@ def edited_fields(change: dict) -> dict:
     return {
         name: value
         for name, value in (change.get("fields") or {}).items()
-        if name not in before or before[name] != value
+        if name not in before or not same_value(name, before[name], value)
     }
 
 
@@ -149,10 +193,13 @@ def check_update(change: dict, client: APIClient) -> Item:
     item.priority_id = live.get("priority_id") or 0
     allowed = editable_fields(live.get("template_id"))
     extra = sorted(set(body) - set(allowed))
+    problem = steps_problem(body[STEPS_FIELD], live.get(STEPS_FIELD)) if STEPS_FIELD in body else ""
     if extra:
         item.status = "unsupported"
         item.note = f"template {live.get('template_id')} cannot take {extra}"
-    elif all(live.get(name) == value for name, value in body.items()):
+    elif problem:
+        item.status, item.note = "unsupported", problem
+    elif all(same_value(name, live.get(name), value) for name, value in body.items()):
         item.status, item.note = "unchanged", "TestRail already has this content"
     elif (live.get("version"), live.get("updated_on")) != (
         change.get("base_version"),
@@ -243,6 +290,38 @@ def field_diff(before: Any, after: Any) -> list[str]:
     return [line for line in lines if not line.startswith(("---", "+++", "@@"))]
 
 
+def _step_lines(label: str, step: dict, sign: str) -> list[str]:
+    lines = [f"{label} ({'added' if sign == '+' else 'removed'})"]
+    for name in STEP_KEYS:
+        if step.get(name) not in (None, ""):
+            before, after = (None, step[name]) if sign == "+" else (step[name], None)
+            lines += [f"{label} {name}: {line}" for line in field_diff(before, after)]
+    return lines
+
+
+def steps_diff(before: Any, after: Any) -> list[str]:
+    """Step-by-step diff: `step 3 expected: -old`, `step 5 (added)`, `step 2 (removed)`.
+    Added and changed steps are numbered as in the new list, removed ones as in the old."""
+    old, new = list(before or []), list(after or [])
+    matcher = difflib.SequenceMatcher(a=steps_key(old), b=steps_key(new), autojunk=False)
+    out: list[str] = []
+    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+        if tag == "equal":
+            continue
+        pairs = min(i2 - i1, j2 - j1) if tag == "replace" else 0
+        for offset in range(pairs):
+            a, b = old[i1 + offset], new[j1 + offset]
+            for name in STEP_KEYS:
+                if step_key({name: a.get(name)}) != step_key({name: b.get(name)}):
+                    label = f"step {j1 + offset + 1} {name}"
+                    out += [f"{label}: {line}" for line in field_diff(a.get(name), b.get(name))]
+        for index in range(i1 + pairs, i2):
+            out += _step_lines(f"step {index + 1}", old[index], "-")
+        for index in range(j1 + pairs, j2):
+            out += _step_lines(f"step {index + 1}", new[index], "+")
+    return out
+
+
 def describe(item: Item) -> dict:
     before = item.change.get("before") or {}
     title = (item.live or {}).get("title") or before.get("title") or item.body.get("title") or ""
@@ -255,7 +334,10 @@ def describe(item: Item) -> dict:
         out["note"] = item.note
     if item.status == "ready":
         live = item.live or {}
-        out["diff"] = {name: field_diff(live.get(name), value) for name, value in item.body.items()}
+        out["diff"] = {
+            name: (steps_diff if name == STEPS_FIELD else field_diff)(live.get(name), value)
+            for name, value in item.body.items()
+        }
     return out
 
 
@@ -283,7 +365,9 @@ def write_update(item: Item, client: APIClient) -> str:
     case_id = item.change["case_id"]
     client.post(f"update_case/{case_id}", item.body)
     saved = client.get(f"get_case/{case_id}")
-    differs = [name for name, value in item.body.items() if saved.get(name) != value]
+    differs = [
+        name for name, value in item.body.items() if not same_value(name, saved.get(name), value)
+    ]
     if differs:
         raise APIError(0, f"read back differs from what was sent: {differs}")
     return ""

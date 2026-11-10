@@ -391,3 +391,156 @@ def test_apply_network_error_mid_batch_keeps_earlier_results(tmp_path):
         ("C3318", "failed"),
     ]
     assert out["backup"]
+
+
+def step(content, expected="", **extra):
+    return {
+        "content": content,
+        "expected": expected,
+        "additional_info": "",
+        "refs": "",
+        "markdown_editor_id": 1,
+        **extra,
+    }
+
+
+SHARED = {"shared_step_id": 4, "content": "<p>Pick a slot</p>", "expected": "<p>Slot held</p>"}
+
+
+def steps_case(**overrides):
+    defaults = {
+        "id": 2050,
+        "template_id": 2,
+        "custom_steps": "<ol><li>stale</li></ol>",
+        "custom_expected": "<p>stale</p>",
+        "custom_steps_separated": [
+            step("<p>Open booking list</p>", "<ul><li>Shows Refunded</li></ul>"),
+            dict(SHARED),
+            step("<p>Open rsv form</p>", "<p>Shows -SGD 800.00</p>"),
+        ],
+    }
+    return live_case(**{**defaults, **overrides})
+
+
+def snapshot_steps_case(path, route_case=None):
+    route = route_get("get_case/2050", route_case or steps_case())
+    snapshot_to(path, "2050")
+    return route, json.loads(path.read_text())["updates"][0]["fields"]["custom_steps_separated"]
+
+
+@respx.mock
+def test_snapshot_steps_template_exposes_steps_but_not_stale_text_fields(tmp_path):
+    route_get("get_case/2050", steps_case())
+    report, changes = snapshot_to(tmp_path / "c.json", "2050")
+    fields = changes["updates"][0]["fields"]
+    assert list(fields) == ["title", "custom_preconds", "custom_steps_separated"]
+    assert fields["custom_steps_separated"][1] == SHARED
+    assert "note" not in changes["updates"][0] and "title_only" not in report
+
+
+@respx.mock
+def test_snapshot_custom_steps_template_stays_title_only(tmp_path):
+    route_get("get_case/2050", steps_case(template_id=7))
+    report, changes = snapshot_to(tmp_path / "c.json", "2050")
+    assert list(changes["updates"][0]["fields"]) == ["title"]
+    assert report["title_only"] == [2050]
+
+
+@respx.mock
+def test_apply_steps_edit_shows_a_per_step_diff_and_sends_the_whole_list(tmp_path):
+    path = tmp_path / "c.json"
+    route, steps = snapshot_steps_case(path)
+    steps[2]["expected"] = "<p>Shows -SGD 900.00</p>"
+    steps[0]["content"] = "<p>Open the booking list</p>"
+    edit(path, custom_steps_separated=steps)
+    item = json.loads(apply(path).stdout)["items"][0]
+    assert item["status"] == "ready" and list(item["diff"]) == ["custom_steps_separated"]
+    assert item["diff"]["custom_steps_separated"] == [
+        "step 1 content: -<p>Open booking list</p>",
+        "step 1 content: +<p>Open the booking list</p>",
+        "step 3 expected: -<p>Shows -SGD 800.00</p>",
+        "step 3 expected: +<p>Shows -SGD 900.00</p>",
+    ]
+
+    post = respx.post(url__startswith=f"{API}update_case/2050").mock(
+        return_value=httpx.Response(200, json={})
+    )
+    route.mock(
+        side_effect=[
+            httpx.Response(200, json=steps_case()),
+            httpx.Response(200, json=steps_case(version=4, custom_steps_separated=steps)),
+        ]
+    )
+    out = json.loads(apply(path, "--commit").stdout)
+    assert out["results"] == [{"key": "C2050", "status": "ok"}]
+    sent = json.loads(post.calls[0].request.read())
+    assert sent == {"custom_steps_separated": steps}
+    assert sent["custom_steps_separated"][0]["markdown_editor_id"] == 1
+
+
+@respx.mock
+def test_apply_steps_add_remove_and_move_a_shared_step(tmp_path):
+    path = tmp_path / "c.json"
+    _, steps = snapshot_steps_case(path)
+    new_steps = [steps[1], steps[2], step("<p>Check HostApp</p>", "<p>Matches</p>")]
+    edit(path, custom_steps_separated=new_steps)
+    item = json.loads(apply(path).stdout)["items"][0]
+    assert item["status"] == "ready"
+    diff = item["diff"]["custom_steps_separated"]
+    assert "step 1 (removed)" in diff and "step 3 (added)" in diff
+    assert "step 3 content: +<p>Check HostApp</p>" in diff
+
+
+@respx.mock
+@pytest.mark.parametrize(
+    "change",
+    [
+        lambda steps: steps[1].update(expected="<p>Slot released</p>"),
+        lambda steps: steps.pop(1),
+        lambda steps: steps.append({"shared_step_id": 9, "content": "x"}),
+    ],
+    ids=["edited", "removed", "added"],
+)
+def test_apply_blocks_touching_a_shared_step(tmp_path, change):
+    path = tmp_path / "c.json"
+    _, steps = snapshot_steps_case(path)
+    change(steps)
+    edit(path, custom_steps_separated=steps)
+    blocked = json.loads(apply(path).stdout)["blocked"][0]
+    assert blocked["status"] == "unsupported" and "shared steps" in blocked["note"]
+
+
+@respx.mock
+def test_apply_steps_null_and_empty_string_are_the_same(tmp_path):
+    path = tmp_path / "c.json"
+    _, steps = snapshot_steps_case(path)
+    for item in steps:
+        if "shared_step_id" not in item:
+            item.update(additional_info=None, refs=None, markdown_editor_id=2)
+    edit(path, custom_steps_separated=steps)
+    out = json.loads(apply(path).stdout)
+    assert out["unchanged"] == ["C2050"] and out["items"] == []
+
+
+@respx.mock
+def test_apply_steps_rerun_after_write_is_unchanged(tmp_path):
+    path = tmp_path / "c.json"
+    route, steps = snapshot_steps_case(path)
+    steps[0]["expected"] = "<p>new</p>"
+    edit(path, custom_steps_separated=steps)
+    written = [dict(s, refs=None) if "shared_step_id" not in s else s for s in steps]
+    route.mock(
+        return_value=httpx.Response(
+            200, json=steps_case(version=4, updated_on=200, custom_steps_separated=written)
+        )
+    )
+    assert json.loads(apply(path).stdout)["unchanged"] == ["C2050"]
+
+
+@respx.mock
+def test_apply_steps_template_cannot_take_the_stale_text_fields(tmp_path):
+    path = tmp_path / "c.json"
+    snapshot_steps_case(path)
+    edit(path, custom_expected="<p>new</p>")
+    blocked = json.loads(apply(path).stdout)["blocked"][0]
+    assert blocked["status"] == "unsupported" and "custom_expected" in blocked["note"]
