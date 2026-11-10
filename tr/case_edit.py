@@ -23,6 +23,7 @@ TEXT_FIELDS = ("custom_preconds", "custom_steps", "custom_expected")
 STEPS_FIELD = "custom_steps_separated"
 STEPS_FIELDS = ("custom_preconds", STEPS_FIELD)
 STEP_KEYS = ("content", "expected", "additional_info", "refs", "shared_step_id")
+STEP_EDITOR_KEY = "markdown_editor_id"
 ANY_TEMPLATE_FIELDS = ("title",)
 ADD_REQUIRED = frozenset({"title", "template_id", "type_id", "priority_id", *TEXT_FIELDS})
 DIFF_SPLIT = re.compile(r"\n|(?=<li>|</?[ou]l>)")
@@ -58,9 +59,29 @@ def same_value(name: str, a: Any, b: Any) -> bool:
 
 def steps_problem(steps: Any, live_steps: Any) -> str:
     """Why a new steps array cannot be sent, or "" if it can. Shared steps may move but must
-    come back exactly as TestRail returned them; this tool never edits a shared step."""
+    come back exactly as TestRail returned them; this tool never edits a shared step.
+    TestRail returns a shared set expanded, one entry per step, each with the set's id; whether
+    sending those entries back keeps one reference or repeats the set is only verified for
+    one-step sets."""
     if not isinstance(steps, list) or not all(isinstance(step, dict) for step in steps):
         return f"{STEPS_FIELD} must be a list of step objects"
+    live = [step for step in live_steps or [] if isinstance(step, dict)]
+    known = {*STEP_KEYS, STEP_EDITOR_KEY}.union(*live)
+    unknown = sorted(set().union(*steps) - known)
+    if unknown:
+        return f"steps have keys TestRail does not: {unknown}"
+    spanning = sorted(
+        {
+            a["shared_step_id"]
+            for a, b in zip(live, live[1:], strict=False)
+            if a.get("shared_step_id") and a.get("shared_step_id") == b.get("shared_step_id")
+        }
+    )
+    if spanning:
+        return (
+            f"shared steps {spanning} span several steps; writing those back is not verified, "
+            "edit this case in TestRail"
+        )
 
     def shared(items: Any) -> Counter:
         return Counter(

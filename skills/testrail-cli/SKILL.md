@@ -35,7 +35,10 @@ Use this instead of hand-written `update_case` calls whenever more than one case
    Template 1 (Text) cases expose title, preconds, steps, expected. Template 2 (Steps) cases expose
    title, preconds and `custom_steps_separated`, a list of `{content, expected, additional_info, refs,
    ...}`; the whole list is sent, so you can edit, add, remove or reorder steps, but keep any step with
-   `shared_step_id` exactly as it is (moving it is fine). Other templates expose the title only.
+   `shared_step_id` exactly as it is (moving it is fine). Use only the keys the snapshot shows; an
+   unknown key is `unsupported`, not dropped. A case where one shared set fills several steps in a
+   row cannot have its steps edited here (title and preconds still can): say so and leave it for
+   TestRail. Other templates expose the title only.
 3. Optional new cases go in `adds[]`: `{"section_id": 12, "fields": {title, template_id: 1, type_id,
    priority_id, custom_preconds, custom_steps, custom_expected}}`. Keys are `A1`, `A2`, ... in file order.
 4. `testrail case apply edits.json` prints the next batch of up to 10 `ready` cases (highest
