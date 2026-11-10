@@ -32,7 +32,10 @@ Use this instead of hand-written `update_case` calls whenever more than one case
 2. Edit only `updates[].fields` in the file. Keep `before` and `base_*` untouched: `apply` sends
    only fields that differ from `before`, and blocks a case changed in TestRail since the snapshot.
    Steps and expected are HTML (`<ol><li>`); change the text you need and keep the rest byte-for-byte.
-   Template 1 cases expose title, preconds, steps, expected; other templates expose the title only.
+   Template 1 (Text) cases expose title, preconds, steps, expected. Template 2 (Steps) cases expose
+   title, preconds and `custom_steps_separated`, a list of `{content, expected, additional_info, refs,
+   ...}`; the whole list is sent, so you can edit, add, remove or reorder steps, but keep any step with
+   `shared_step_id` exactly as it is (moving it is fine). Other templates expose the title only.
 3. Optional new cases go in `adds[]`: `{"section_id": 12, "fields": {title, template_id: 1, type_id,
    priority_id, custom_preconds, custom_steps, custom_expected}}`. Keys are `A1`, `A2`, ... in file order.
 4. `testrail case apply edits.json` prints the next batch of up to 10 `ready` cases (highest
